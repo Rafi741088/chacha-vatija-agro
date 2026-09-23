@@ -1,12 +1,12 @@
 import { ShoppingCart, UserRound } from "lucide-react";
 
-function Navbar() {
+function Navbar({ cartCount }) {
   return (
     <nav className="sticky top-0 z-50 border-b border-green-900/10 bg-white/95 backdrop-blur-md">
       <div className="mx-auto flex max-w-7xl items-center justify-between px-5 py-4">
 
         {/* Logo */}
-        <a href="/" className="flex items-center gap-3">
+        <a href="#home" className="flex items-center gap-3">
           <div className="flex h-11 w-11 items-center justify-center rounded-full bg-green-800 text-sm font-black text-white">
             CV
           </div>
@@ -62,19 +62,24 @@ function Navbar() {
 
         {/* Actions */}
         <div className="flex items-center gap-2">
-          <button className="relative rounded-full p-2 text-green-950 hover:bg-green-50">
+
+          {/* Cart */}
+          <button className="relative rounded-full p-2 text-green-950 transition hover:bg-green-50">
             <ShoppingCart size={21} />
 
-            <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-amber-500 text-[10px] font-bold text-white">
-              0
-            </span>
+            {cartCount > 0 && (
+              <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-amber-500 px-1 text-[10px] font-bold text-white">
+                {cartCount}
+              </span>
+            )}
           </button>
 
-          <button className="rounded-full p-2 text-green-950 hover:bg-green-50">
+          {/* User */}
+          <button className="rounded-full p-2 text-green-950 transition hover:bg-green-50">
             <UserRound size={21} />
           </button>
-        </div>
 
+        </div>
       </div>
     </nav>
   );

@@ -1,3 +1,4 @@
+import agroHero from "../assets/agro-hero.png";
 import {
   ArrowRight,
   Leaf,
@@ -17,8 +18,8 @@ function Home() {
 
         {/* Demo Farm Image */}
         <img
-          src="https://images.unsplash.com/photo-1500595046743-cd271d694d30?auto=format&fit=crop&w=2000&q=85"
-          alt="Farm"
+          src={agroHero}
+          alt="Chacha & Vatija Agro - Fish, Goat and Chicken Farm"
           className="absolute inset-0 h-full w-full object-cover"
         />
 
