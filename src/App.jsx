@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from "react";
 import {
   BrowserRouter,
@@ -15,8 +14,13 @@ import Shop from "./pages/Shop";
 import Checkout from "./pages/Checkout";
 import AboutFarm from "./pages/AboutFarm";
 import ContactFooter from "./pages/ContactFooter";
+import ProductDetails from "./pages/ProductDetails";
 
 function AppContent() {
+  // =========================
+  // CART
+  // =========================
+
   const [cart, setCart] = useState(() => {
     try {
       const savedCart = localStorage.getItem(
@@ -31,7 +35,23 @@ function AppContent() {
     }
   });
 
-  const [isCartOpen, setIsCartOpen] = useState(false);
+  // =========================
+  // SELECTED PRODUCT
+  // =========================
+
+  const [selectedProduct, setSelectedProduct] =
+    useState(null);
+
+  // =========================
+  // CART DRAWER
+  // =========================
+
+  const [isCartOpen, setIsCartOpen] =
+    useState(false);
+
+  // =========================
+  // LAST ORDER
+  // =========================
 
   const [lastOrder, setLastOrder] = useState(() => {
     try {
@@ -49,9 +69,9 @@ function AppContent() {
 
   const navigate = useNavigate();
 
-  /* =========================
-     CART STORAGE
-  ========================== */
+  // =========================
+  // SAVE CART
+  // =========================
 
   useEffect(() => {
     localStorage.setItem(
@@ -60,22 +80,24 @@ function AppContent() {
     );
   }, [cart]);
 
-  /* =========================
-     ADD TO CART
-  ========================== */
+  // =========================
+  // ADD TO CART
+  // =========================
 
   const addToCart = (product) => {
     setCart((currentCart) => {
-      const existingProduct = currentCart.find(
-        (item) => item.id === product.id
-      );
+      const existingProduct =
+        currentCart.find(
+          (item) => item.id === product.id
+        );
 
       if (existingProduct) {
         return currentCart.map((item) =>
           item.id === product.id
             ? {
                 ...item,
-                quantity: item.quantity + 1,
+                quantity:
+                  item.quantity + 1,
               }
             : item
         );
@@ -93,26 +115,32 @@ function AppContent() {
     setIsCartOpen(true);
   };
 
-  /* =========================
-     INCREASE QUANTITY
-  ========================== */
+  // =========================
+  // INCREASE QUANTITY
+  // =========================
 
   const increaseQuantity = (id) => {
     setCart((currentCart) =>
-      currentCart.map((item) =>
-        item.id === id
-          ? {
-              ...item,
-              quantity: item.quantity + 1,
-            }
-          : item
-      )
+      currentCart.map((item) => {
+        if (item.id !== id) {
+          return item;
+        }
+
+        if (item.quantity >= item.stock) {
+          return item;
+        }
+
+        return {
+          ...item,
+          quantity: item.quantity + 1,
+        };
+      })
     );
   };
 
-  /* =========================
-     DECREASE QUANTITY
-  ========================== */
+  // =========================
+  // DECREASE QUANTITY
+  // =========================
 
   const decreaseQuantity = (id) => {
     setCart((currentCart) =>
@@ -121,17 +149,20 @@ function AppContent() {
           item.id === id
             ? {
                 ...item,
-                quantity: item.quantity - 1,
+                quantity:
+                  item.quantity - 1,
               }
             : item
         )
-        .filter((item) => item.quantity > 0)
+        .filter(
+          (item) => item.quantity > 0
+        )
     );
   };
 
-  /* =========================
-     REMOVE FROM CART
-  ========================== */
+  // =========================
+  // REMOVE PRODUCT
+  // =========================
 
   const removeFromCart = (id) => {
     setCart((currentCart) =>
@@ -141,44 +172,75 @@ function AppContent() {
     );
   };
 
-  /* =========================
-     CART COUNT
-  ========================== */
+  // =========================
+  // CART COUNT
+  // =========================
 
   const cartCount = cart.reduce(
-    (total, item) => total + item.quantity,
+    (total, item) =>
+      total + item.quantity,
     0
   );
 
-  /* =========================
-     ORDER ID
-  ========================== */
+  // =========================
+  // PRODUCT DETAILS
+  // =========================
+
+  const handleProductDetails = (
+    product
+  ) => {
+    setSelectedProduct(product);
+
+    navigate("/product");
+
+    window.scrollTo({
+      top: 0,
+      behavior: "smooth",
+    });
+  };
+
+  // =========================
+  // ORDER ID
+  // =========================
 
   const generateOrderId = () => {
-    const randomNumber = Math.floor(
-      100000 + Math.random() * 900000
-    );
+    const randomNumber =
+      Math.floor(
+        100000 +
+          Math.random() * 900000
+      );
 
     return `CVA-${randomNumber}`;
   };
 
-  /* =========================
-     ORDER COMPLETE
-  ========================== */
+  // =========================
+  // ORDER COMPLETE
+  // =========================
 
-  const handleOrderComplete = (order) => {
+  const handleOrderComplete = (
+    order
+  ) => {
     const completedOrder = {
       ...order,
-      orderId: generateOrderId(),
+
+      orderId:
+        generateOrderId(),
+
       status: "Order Placed",
-      createdAt: new Date().toISOString(),
+
+      createdAt:
+        new Date().toISOString(),
     };
 
-    setLastOrder(completedOrder);
+    setLastOrder(
+      completedOrder
+    );
 
     localStorage.setItem(
       "chacha_vatija_last_order",
-      JSON.stringify(completedOrder)
+      JSON.stringify(
+        completedOrder
+      )
     );
 
     setCart([]);
@@ -190,18 +252,44 @@ function AppContent() {
     setIsCartOpen(false);
 
     navigate("/order-success");
+
+    window.scrollTo({
+      top: 0,
+      behavior: "smooth",
+    });
+  };
+
+  // =========================
+  // GO HOME
+  // =========================
+
+  const goHome = () => {
+    navigate("/");
+
+    window.scrollTo({
+      top: 0,
+      behavior: "smooth",
+    });
   };
 
   return (
     <div className="min-h-screen bg-stone-50">
 
-      {/* NAVBAR */}
+      {/* =========================
+          NAVBAR
+      ========================== */}
+
       <Navbar
         cartCount={cartCount}
-        onCartClick={() => setIsCartOpen(true)}
+        onCartClick={() =>
+          setIsCartOpen(true)
+        }
       />
 
-      {/* ROUTES */}
+      {/* =========================
+          ROUTES
+      ========================== */}
+
       <Routes>
 
         {/* =========================
@@ -216,12 +304,37 @@ function AppContent() {
 
               <Shop
                 addToCart={addToCart}
+                onProductDetails={
+                  handleProductDetails
+                }
               />
 
               <AboutFarm />
 
               <ContactFooter />
             </>
+          }
+        />
+
+        {/* =========================
+            PRODUCT DETAILS
+        ========================== */}
+
+        <Route
+          path="/product"
+          element={
+            <ProductDetails
+              product={
+                selectedProduct
+              }
+              addToCart={
+                addToCart
+              }
+              onBack={goHome}
+              onProductDetails={
+                handleProductDetails
+              }
+            />
           }
         />
 
@@ -234,8 +347,10 @@ function AppContent() {
           element={
             <Checkout
               cart={cart}
-              onBackToShop={() => navigate("/")}
-              onOrderComplete={handleOrderComplete}
+              onBackToShop={goHome}
+              onOrderComplete={
+                handleOrderComplete
+              }
             />
           }
         />
@@ -277,17 +392,36 @@ function AppContent() {
 
       </Routes>
 
-      {/* CART DRAWER */}
+      {/* =========================
+          CART DRAWER
+      ========================== */}
+
       <CartDrawer
         cart={cart}
         isOpen={isCartOpen}
-        onClose={() => setIsCartOpen(false)}
-        increaseQuantity={increaseQuantity}
-        decreaseQuantity={decreaseQuantity}
-        removeFromCart={removeFromCart}
+        onClose={() =>
+          setIsCartOpen(false)
+        }
+        increaseQuantity={
+          increaseQuantity
+        }
+        decreaseQuantity={
+          decreaseQuantity
+        }
+        removeFromCart={
+          removeFromCart
+        }
         onCheckout={() => {
           setIsCartOpen(false);
-          navigate("/checkout");
+
+          navigate(
+            "/checkout"
+          );
+
+          window.scrollTo({
+            top: 0,
+            behavior: "smooth",
+          });
         }}
       />
 
@@ -295,18 +429,31 @@ function AppContent() {
   );
 }
 
+// =====================================================
+// ORDER SUCCESS
+// =====================================================
 
-/* ==========================================
-   ORDER SUCCESS PAGE
-========================================== */
+function OrderSuccess({
+  order,
+}) {
+  const navigate =
+    useNavigate();
 
-function OrderSuccess({ order }) {
-  const navigate = useNavigate();
+  const goHome = () => {
+    navigate("/");
+
+    window.scrollTo({
+      top: 0,
+      behavior: "smooth",
+    });
+  };
 
   return (
     <section className="flex min-h-[calc(100vh-73px)] items-center justify-center bg-stone-50 px-5 py-20">
 
       <div className="w-full max-w-xl rounded-3xl border border-green-100 bg-white p-8 text-center shadow-xl sm:p-12">
+
+        {/* SUCCESS ICON */}
 
         <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-green-100">
 
@@ -316,13 +463,18 @@ function OrderSuccess({ order }) {
 
         </div>
 
+        {/* TITLE */}
+
         <h1 className="mt-7 text-3xl font-black text-green-950">
           অর্ডার সফল হয়েছে!
         </h1>
 
         <p className="mx-auto mt-4 max-w-md leading-7 text-gray-500">
-          ধন্যবাদ। আপনার অর্ডারটি সফলভাবে গ্রহণ করা হয়েছে।
+          ধন্যবাদ। আপনার অর্ডারটি
+          সফলভাবে গ্রহণ করা হয়েছে।
         </p>
+
+        {/* ORDER ID */}
 
         {order && (
           <div className="mt-6 rounded-2xl bg-green-50 p-5">
@@ -342,11 +494,13 @@ function OrderSuccess({ order }) {
           </div>
         )}
 
+        {/* BUTTONS */}
+
         <div className="mt-8 flex flex-col gap-3 sm:flex-row">
 
           <button
             type="button"
-            onClick={() => navigate("/")}
+            onClick={goHome}
             className="flex-1 rounded-full bg-green-800 px-6 py-3.5 font-bold text-white transition hover:bg-green-700"
           >
             Shopping করুন
@@ -356,7 +510,9 @@ function OrderSuccess({ order }) {
             <button
               type="button"
               onClick={() =>
-                navigate("/track-order")
+                navigate(
+                  "/track-order"
+                )
               }
               className="flex-1 rounded-full border border-green-200 px-6 py-3.5 font-bold text-green-800 transition hover:bg-green-50"
             >
@@ -372,13 +528,15 @@ function OrderSuccess({ order }) {
   );
 }
 
+// =====================================================
+// TRACK ORDER
+// =====================================================
 
-/* ==========================================
-   TRACK ORDER PAGE
-========================================== */
-
-function TrackOrder({ order }) {
-  const navigate = useNavigate();
+function TrackOrder({
+  order,
+}) {
+  const navigate =
+    useNavigate();
 
   if (!order) {
     return (
@@ -386,7 +544,11 @@ function TrackOrder({ order }) {
 
         <div className="text-center">
 
-          <h1 className="text-3xl font-black text-green-950">
+          <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-green-50 text-3xl">
+            📦
+          </div>
+
+          <h1 className="mt-6 text-3xl font-black text-green-950">
             কোনো Order পাওয়া যায়নি
           </h1>
 
@@ -396,7 +558,9 @@ function TrackOrder({ order }) {
 
           <button
             type="button"
-            onClick={() => navigate("/")}
+            onClick={() =>
+              navigate("/")
+            }
             className="mt-6 rounded-full bg-green-800 px-7 py-3 font-bold text-white transition hover:bg-green-700"
           >
             Shop করুন
@@ -412,6 +576,8 @@ function TrackOrder({ order }) {
     <section className="min-h-[calc(100vh-73px)] bg-stone-50 px-5 py-16">
 
       <div className="mx-auto max-w-3xl">
+
+        {/* HEADER */}
 
         <div className="text-center">
 
@@ -432,13 +598,15 @@ function TrackOrder({ order }) {
 
         </div>
 
-        {/* Tracking Timeline */}
+        {/* TIMELINE */}
+
         <div className="mt-10 rounded-3xl border border-gray-100 bg-white p-6 shadow-sm sm:p-8">
 
-          {/* Step 1 */}
+          {/* STEP 1 */}
+
           <div className="flex gap-4">
 
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-green-800 text-white">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-green-800 font-black text-white">
               ✓
             </div>
 
@@ -456,10 +624,11 @@ function TrackOrder({ order }) {
 
           </div>
 
-          {/* Step 2 */}
+          {/* STEP 2 */}
+
           <div className="flex gap-4">
 
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border-2 border-green-200 bg-green-50 text-green-700">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border-2 border-green-200 bg-green-50 font-bold text-green-700">
               2
             </div>
 
@@ -477,10 +646,11 @@ function TrackOrder({ order }) {
 
           </div>
 
-          {/* Step 3 */}
+          {/* STEP 3 */}
+
           <div className="flex gap-4">
 
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border-2 border-gray-200 bg-gray-50 text-gray-400">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border-2 border-gray-200 bg-gray-50 font-bold text-gray-400">
               3
             </div>
 
@@ -498,10 +668,11 @@ function TrackOrder({ order }) {
 
           </div>
 
-          {/* Step 4 */}
+          {/* STEP 4 */}
+
           <div className="flex gap-4">
 
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border-2 border-gray-200 bg-gray-50 text-gray-400">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border-2 border-gray-200 bg-gray-50 font-bold text-gray-400">
               4
             </div>
 
@@ -521,14 +692,15 @@ function TrackOrder({ order }) {
 
         </div>
 
-        {/* Customer Information */}
-        <div className="mt-6 rounded-3xl border border-gray-100 bg-white p-6 shadow-sm">
+        {/* DELIVERY INFORMATION */}
+
+        <div className="mt-6 rounded-3xl border border-gray-100 bg-white p-6 shadow-sm sm:p-8">
 
           <h2 className="text-lg font-black text-green-950">
             Delivery Information
           </h2>
 
-          <div className="mt-4 space-y-3 text-sm text-gray-600">
+          <div className="mt-5 space-y-4 text-sm text-gray-600">
 
             <p>
               <span className="font-bold text-gray-900">
@@ -562,11 +734,34 @@ function TrackOrder({ order }) {
 
         </div>
 
+        {/* TOTAL */}
+
+        <div className="mt-6 rounded-3xl bg-green-950 p-6 text-white">
+
+          <div className="flex items-center justify-between">
+
+            <span className="font-bold text-white/60">
+              Order Total
+            </span>
+
+            <span className="text-2xl font-black text-lime-400">
+              ৳
+              {order.total?.toLocaleString()}
+            </span>
+
+          </div>
+
+        </div>
+
+        {/* HOME */}
+
         <div className="mt-7 text-center">
 
           <button
             type="button"
-            onClick={() => navigate("/")}
+            onClick={() =>
+              navigate("/")
+            }
             className="rounded-full bg-green-800 px-7 py-3 font-bold text-white transition hover:bg-green-700"
           >
             Home এ ফিরে যান
@@ -580,20 +775,24 @@ function TrackOrder({ order }) {
   );
 }
 
-
-/* ==========================================
-   404 PAGE
-========================================== */
+// =====================================================
+// 404
+// =====================================================
 
 function NotFound() {
-  const navigate = useNavigate();
+  const navigate =
+    useNavigate();
 
   return (
     <section className="flex min-h-[calc(100vh-73px)] items-center justify-center bg-stone-50 px-5">
 
       <div className="text-center">
 
-        <h1 className="text-7xl font-black text-green-800">
+        <p className="text-sm font-bold uppercase tracking-[0.3em] text-green-600">
+          Chacha & Vatija Agro
+        </p>
+
+        <h1 className="mt-3 text-7xl font-black text-green-800">
           404
         </h1>
 
@@ -607,7 +806,9 @@ function NotFound() {
 
         <button
           type="button"
-          onClick={() => navigate("/")}
+          onClick={() =>
+            navigate("/")
+          }
           className="mt-7 rounded-full bg-green-800 px-7 py-3 font-bold text-white transition hover:bg-green-700"
         >
           Home এ যান
@@ -619,10 +820,9 @@ function NotFound() {
   );
 }
 
-
-/* ==========================================
-   MAIN APP
-========================================== */
+// =====================================================
+// APP
+// =====================================================
 
 function App() {
   return (
@@ -633,4 +833,3 @@ function App() {
 }
 
 export default App;
-
