@@ -69,7 +69,12 @@ function Navbar({ cartCount, onCartClick }) {
           >
             Our Farm
           </a>
-
+          <a
+            href="#faq"
+            className="text-sm font-semibold text-green-950 transition hover:text-green-600"
+          >
+            FAQ
+          </a>
           <a
             href="#contact"
             className="text-sm font-semibold text-green-950 transition hover:text-green-600"
@@ -134,11 +139,10 @@ function Navbar({ cartCount, onCartClick }) {
 
       {/* ================= MOBILE MENU ================= */}
       <div
-        className={`overflow-hidden border-t border-green-900/10 bg-white transition-all duration-300 lg:hidden ${
-          menuOpen
-            ? "max-h-[500px] opacity-100"
-            : "max-h-0 opacity-0"
-        }`}
+        className={`overflow-hidden border-t border-green-900/10 bg-white transition-all duration-300 lg:hidden ${menuOpen
+          ? "max-h-[500px] opacity-100"
+          : "max-h-0 opacity-0"
+          }`}
       >
         <div className="mx-auto max-w-7xl px-5 py-4">
 
@@ -175,7 +179,13 @@ function Navbar({ cartCount, onCartClick }) {
             >
               Our Farm
             </a>
-
+            <a
+              href="#faq"
+              onClick={closeMenu}
+              className="rounded-xl px-4 py-3 text-sm font-bold text-green-950 transition hover:bg-green-50"
+            >
+              FAQ
+            </a>
             <a
               href="#contact"
               onClick={closeMenu}

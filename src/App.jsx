@@ -15,6 +15,8 @@ import Checkout from "./pages/Checkout";
 import AboutFarm from "./pages/AboutFarm";
 import ContactFooter from "./pages/ContactFooter";
 import ProductDetails from "./pages/ProductDetails";
+import FAQ from "./components/FAQ";
+import TrustSection from "./components/TrustSection";
 
 function AppContent() {
   // =========================
@@ -310,6 +312,9 @@ function AppContent() {
               />
 
               <AboutFarm />
+              <TrustSection />
+
+                <FAQ />
 
               <ContactFooter />
             </>
