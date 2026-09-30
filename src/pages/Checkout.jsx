@@ -11,20 +11,24 @@ import {
   Truck,
   ShieldCheck,
 } from "lucide-react";
-import { Link, useNavigate } from "react-router-dom";
+ 
 
 function Checkout({
   cart = [],
   cartSubtotal = 0,
   deliveryCharge = 0,
   cartTotal = 0,
-  clearCart = () => {},
+  onBackToShop = () => {},
+  onOrderComplete = () => {},
 }) {
-  const navigate = useNavigate();
+  const safeCart = Array.isArray(cart)
+    ? cart
+    : [];
 
-  const safeCart = Array.isArray(cart) ? cart : [];
+  /* =========================
+     SAFE CALCULATIONS
+  ========================= */
 
-  // Safety calculation
   const calculatedSubtotal = safeCart.reduce(
     (total, item) =>
       total +
@@ -34,17 +38,19 @@ function Checkout({
   );
 
   const safeSubtotal =
-    Number(cartSubtotal) || calculatedSubtotal;
+    Number(cartSubtotal) ||
+    calculatedSubtotal;
 
-  const safeDeliveryCharge =
+  const safeDelivery =
     Number(deliveryCharge) ||
     (safeCart.length > 0 ? 80 : 0);
 
   const calculatedTotal =
-    safeSubtotal + safeDeliveryCharge;
+    safeSubtotal + safeDelivery;
 
   const safeTotal =
-    Number(cartTotal) || calculatedTotal;
+    Number(cartTotal) ||
+    calculatedTotal;
 
   const totalItems = safeCart.reduce(
     (total, item) =>
@@ -52,21 +58,33 @@ function Checkout({
     0
   );
 
-  const [formData, setFormData] = useState({
-    name: "",
-    phone: "",
-    district: "",
-    address: "",
-    note: "",
-  });
+  /* =========================
+     FORM
+  ========================= */
+
+  const [formData, setFormData] =
+    useState({
+      name: "",
+      phone: "",
+      district: "",
+      address: "",
+      note: "",
+    });
 
   const [paymentMethod, setPaymentMethod] =
     useState("cod");
 
   const [errors, setErrors] = useState({});
 
-  const handleChange = (e) => {
-    const { name, value } = e.target;
+  /* =========================
+     CHANGE
+  ========================= */
+
+  const handleChange = (event) => {
+    const {
+      name,
+      value,
+    } = event.target;
 
     setFormData((previous) => ({
       ...previous,
@@ -81,15 +99,21 @@ function Checkout({
     }
   };
 
+  /* =========================
+     VALIDATION
+  ========================= */
+
   const validateForm = () => {
     const newErrors = {};
 
     if (!formData.name.trim()) {
-      newErrors.name = "আপনার নাম লিখুন";
+      newErrors.name =
+        "আপনার নাম লিখুন";
     }
 
     if (!formData.phone.trim()) {
-      newErrors.phone = "মোবাইল নম্বর লিখুন";
+      newErrors.phone =
+        "মোবাইল নম্বর লিখুন";
     } else if (
       !/^01[3-9]\d{8}$/.test(
         formData.phone.trim()
@@ -100,64 +124,83 @@ function Checkout({
     }
 
     if (!formData.district) {
-      newErrors.district = "জেলা নির্বাচন করুন";
+      newErrors.district =
+        "জেলা নির্বাচন করুন";
     }
 
     if (!formData.address.trim()) {
-      newErrors.address = "সম্পূর্ণ ঠিকানা লিখুন";
+      newErrors.address =
+        "সম্পূর্ণ ঠিকানা লিখুন";
     }
 
     setErrors(newErrors);
 
-    return Object.keys(newErrors).length === 0;
+    return (
+      Object.keys(newErrors).length === 0
+    );
   };
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
+  /* =========================
+     SUBMIT
+  ========================= */
+
+  const handleSubmit = (event) => {
+    event.preventDefault();
 
     if (!validateForm()) {
       return;
     }
 
-    const order = {
-      orderId: `CVA-${Date.now()
-        .toString()
-        .slice(-8)}`,
+    if (safeCart.length === 0) {
+      return;
+    }
 
+    const order = {
       customer: {
-        ...formData,
+        name: formData.name.trim(),
+        phone: formData.phone.trim(),
+        district: formData.district,
+        address: formData.address.trim(),
+        note: formData.note.trim(),
       },
 
       paymentMethod,
 
-      items: safeCart,
+      items: safeCart.map((item) => ({
+        ...item,
+        price: Number(item?.price || 0),
+        quantity: Number(
+          item?.quantity || 0
+        ),
+      })),
 
       subtotal: safeSubtotal,
 
-      deliveryCharge: safeDeliveryCharge,
+      deliveryCharge: safeDelivery,
 
       total: safeTotal,
 
       status: "Order Placed",
 
-      createdAt: new Date().toISOString(),
+      createdAt:
+        new Date().toISOString(),
     };
 
-    localStorage.setItem(
-      "chacha-vatija-last-order",
-      JSON.stringify(order)
-    );
+    /*
+      App.jsx will:
+      - generate Order ID
+      - save order
+      - clear cart
+      - navigate success page
+    */
 
-    clearCart();
-
-    navigate("/order-success", {
-      state: {
-        order,
-      },
-    });
+    onOrderComplete(order);
   };
 
-  // Empty Cart
+  /* =========================
+     EMPTY CART
+  ========================= */
+
   if (safeCart.length === 0) {
     return (
       <main className="min-h-[calc(100dvh-72px)] bg-stone-50 px-4 py-16 sm:px-6 lg:px-8">
@@ -174,17 +217,18 @@ function Checkout({
           </h1>
 
           <p className="mt-2 text-sm leading-6 text-gray-500">
-            Checkout করার জন্য প্রথমে কিছু পণ্য Cart-এ
-            যোগ করুন।
+            Checkout করার জন্য প্রথমে কিছু
+            পণ্য Cart-এ যোগ করুন।
           </p>
 
-          <Link
-            to="/"
+          <button
+            type="button"
+            onClick={onBackToShop}
             className="mt-6 inline-flex min-h-12 items-center gap-2 rounded-full bg-green-800 px-6 py-3 text-sm font-black text-white transition hover:bg-green-700"
           >
             <ArrowLeft size={17} />
             Shopping শুরু করুন
-          </Link>
+          </button>
         </div>
       </main>
     );
@@ -193,15 +237,17 @@ function Checkout({
   return (
     <main className="min-h-[calc(100dvh-72px)] bg-stone-50 px-4 py-8 sm:px-6 sm:py-12 lg:px-8">
       <div className="mx-auto max-w-7xl">
-        {/* Header */}
+        {/* HEADER */}
+
         <div className="mb-8">
-          <Link
-            to="/"
+          <button
+            type="button"
+            onClick={onBackToShop}
             className="inline-flex items-center gap-2 text-sm font-bold text-green-700 transition hover:text-green-900"
           >
             <ArrowLeft size={17} />
             Continue Shopping
-          </Link>
+          </button>
 
           <div className="mt-5">
             <p className="text-xs font-black uppercase tracking-[0.18em] text-amber-600">
@@ -213,17 +259,19 @@ function Checkout({
             </h1>
 
             <p className="mt-2 text-sm text-gray-500">
-              আপনার delivery information দিয়ে order
-              সম্পন্ন করুন।
+              আপনার delivery information দিয়ে
+              order সম্পন্ন করুন।
             </p>
           </div>
         </div>
 
         <form onSubmit={handleSubmit}>
           <div className="grid gap-6 lg:grid-cols-[1fr_400px]">
-            {/* LEFT */}
+            {/* ================= LEFT ================= */}
+
             <div className="space-y-6">
-              {/* Customer Information */}
+              {/* CUSTOMER */}
+
               <section className="rounded-3xl border border-gray-100 bg-white p-5 shadow-sm sm:p-7">
                 <div className="flex items-start gap-3">
                   <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-green-100">
@@ -239,14 +287,15 @@ function Checkout({
                     </h2>
 
                     <p className="mt-1 text-xs text-gray-500">
-                      আপনার সঠিক তথ্য দিন যাতে আমরা যোগাযোগ
-                      করতে পারি।
+                      আপনার সঠিক তথ্য দিন যাতে
+                      আমরা যোগাযোগ করতে পারি।
                     </p>
                   </div>
                 </div>
 
                 <div className="mt-6 grid gap-5 sm:grid-cols-2">
-                  {/* Name */}
+                  {/* NAME */}
+
                   <div>
                     <label
                       htmlFor="name"
@@ -271,7 +320,7 @@ function Checkout({
                         value={formData.name}
                         onChange={handleChange}
                         placeholder="যেমন: Abidur Rahman"
-                        className={`min-h-12 w-full rounded-xl border bg-white pl-11 pr-4 text-sm text-gray-800 outline-none transition focus:ring-4 ${
+                        className={`min-h-12 w-full rounded-xl border bg-white pl-11 pr-4 text-sm outline-none transition focus:ring-4 ${
                           errors.name
                             ? "border-red-400 focus:ring-red-100"
                             : "border-gray-200 focus:border-green-600 focus:ring-green-100"
@@ -280,13 +329,14 @@ function Checkout({
                     </div>
 
                     {errors.name && (
-                      <p className="mt-1.5 text-xs font-semibold text-red-500">
+                      <ErrorText>
                         {errors.name}
-                      </p>
+                      </ErrorText>
                     )}
                   </div>
 
-                  {/* Phone */}
+                  {/* PHONE */}
+
                   <div>
                     <label
                       htmlFor="phone"
@@ -313,7 +363,7 @@ function Checkout({
                         onChange={handleChange}
                         placeholder="01XXXXXXXXX"
                         maxLength={11}
-                        className={`min-h-12 w-full rounded-xl border bg-white pl-11 pr-4 text-sm text-gray-800 outline-none transition focus:ring-4 ${
+                        className={`min-h-12 w-full rounded-xl border bg-white pl-11 pr-4 text-sm outline-none transition focus:ring-4 ${
                           errors.phone
                             ? "border-red-400 focus:ring-red-100"
                             : "border-gray-200 focus:border-green-600 focus:ring-green-100"
@@ -322,13 +372,14 @@ function Checkout({
                     </div>
 
                     {errors.phone && (
-                      <p className="mt-1.5 text-xs font-semibold text-red-500">
+                      <ErrorText>
                         {errors.phone}
-                      </p>
+                      </ErrorText>
                     )}
                   </div>
 
-                  {/* District */}
+                  {/* DISTRICT */}
+
                   <div>
                     <label
                       htmlFor="district"
@@ -351,7 +402,7 @@ function Checkout({
                         name="district"
                         value={formData.district}
                         onChange={handleChange}
-                        className={`min-h-12 w-full appearance-none rounded-xl border bg-white pl-11 pr-4 text-sm text-gray-800 outline-none transition focus:ring-4 ${
+                        className={`min-h-12 w-full rounded-xl border bg-white pl-11 pr-4 text-sm outline-none transition focus:ring-4 ${
                           errors.district
                             ? "border-red-400 focus:ring-red-100"
                             : "border-gray-200 focus:border-green-600 focus:ring-green-100"
@@ -396,13 +447,14 @@ function Checkout({
                     </div>
 
                     {errors.district && (
-                      <p className="mt-1.5 text-xs font-semibold text-red-500">
+                      <ErrorText>
                         {errors.district}
-                      </p>
+                      </ErrorText>
                     )}
                   </div>
 
-                  {/* Address */}
+                  {/* ADDRESS */}
+
                   <div className="sm:col-span-2">
                     <label
                       htmlFor="address"
@@ -421,7 +473,7 @@ function Checkout({
                       onChange={handleChange}
                       rows={4}
                       placeholder="বাড়ি/রোড, এলাকা, থানা/উপজেলা..."
-                      className={`w-full resize-none rounded-xl border bg-white px-4 py-3 text-sm text-gray-800 outline-none transition focus:ring-4 ${
+                      className={`w-full resize-none rounded-xl border bg-white px-4 py-3 text-sm outline-none transition focus:ring-4 ${
                         errors.address
                           ? "border-red-400 focus:ring-red-100"
                           : "border-gray-200 focus:border-green-600 focus:ring-green-100"
@@ -429,13 +481,14 @@ function Checkout({
                     />
 
                     {errors.address && (
-                      <p className="mt-1.5 text-xs font-semibold text-red-500">
+                      <ErrorText>
                         {errors.address}
-                      </p>
+                      </ErrorText>
                     )}
                   </div>
 
-                  {/* Note */}
+                  {/* NOTE */}
+
                   <div className="sm:col-span-2">
                     <label
                       htmlFor="note"
@@ -454,13 +507,14 @@ function Checkout({
                       onChange={handleChange}
                       rows={3}
                       placeholder="Delivery সম্পর্কে কোনো বিশেষ নির্দেশনা থাকলে লিখুন..."
-                      className="w-full resize-none rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-800 outline-none transition focus:border-green-600 focus:ring-4 focus:ring-green-100"
+                      className="w-full resize-none rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-green-600 focus:ring-4 focus:ring-green-100"
                     />
                   </div>
                 </div>
               </section>
 
-              {/* Payment */}
+              {/* PAYMENT */}
+
               <section className="rounded-3xl border border-gray-100 bg-white p-5 shadow-sm sm:p-7">
                 <div className="flex items-start gap-3">
                   <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-amber-100">
@@ -476,83 +530,84 @@ function Checkout({
                     </h2>
 
                     <p className="mt-1 text-xs text-gray-500">
-                      এখন Cash on Delivery দিয়ে order করুন।
+                      এখন Cash on Delivery দিয়ে
+                      order করুন।
                     </p>
                   </div>
                 </div>
 
-                <div className="mt-6">
-                  <label
-                    className={`flex cursor-pointer items-start gap-4 rounded-2xl border p-4 transition ${
+                <label
+                  className={`mt-6 flex cursor-pointer items-start gap-4 rounded-2xl border p-4 transition ${
+                    paymentMethod === "cod"
+                      ? "border-green-700 bg-green-50"
+                      : "border-gray-200 bg-white"
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="paymentMethod"
+                    value="cod"
+                    checked={
                       paymentMethod === "cod"
-                        ? "border-green-700 bg-green-50"
-                        : "border-gray-200 bg-white hover:border-green-300"
-                    }`}
-                  >
-                    <input
-                      type="radio"
-                      name="paymentMethod"
-                      value="cod"
-                      checked={
-                        paymentMethod === "cod"
-                      }
-                      onChange={(e) =>
-                        setPaymentMethod(
-                          e.target.value
-                        )
-                      }
-                      className="mt-1 h-4 w-4 accent-green-700"
-                    />
+                    }
+                    onChange={(event) =>
+                      setPaymentMethod(
+                        event.target.value
+                      )
+                    }
+                    className="mt-1 h-4 w-4 accent-green-700"
+                  />
 
-                    <div className="flex flex-1 items-start gap-3">
-                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white shadow-sm">
-                        <Truck
-                          size={19}
-                          className="text-green-700"
-                        />
-                      </div>
-
-                      <div>
-                        <p className="text-sm font-black text-green-950">
-                          Cash on Delivery
-                        </p>
-
-                        <p className="mt-1 text-xs leading-5 text-gray-500">
-                          পণ্য হাতে পাওয়ার সময় payment
-                          করুন।
-                        </p>
-                      </div>
-
-                      <CheckCircle2
-                        size={20}
-                        className={`ml-auto shrink-0 ${
-                          paymentMethod === "cod"
-                            ? "text-green-700"
-                            : "text-transparent"
-                        }`}
+                  <div className="flex flex-1 items-start gap-3">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white shadow-sm">
+                      <Truck
+                        size={19}
+                        className="text-green-700"
                       />
                     </div>
-                  </label>
 
-                  <div className="mt-4 rounded-xl bg-amber-50 p-4">
-                    <p className="text-xs font-bold text-amber-800">
-                      💡 Online Payment Coming Soon
-                    </p>
+                    <div>
+                      <p className="text-sm font-black text-green-950">
+                        Cash on Delivery
+                      </p>
 
-                    <p className="mt-1 text-[11px] leading-5 text-amber-700">
-                      পরবর্তী ধাপে bKash, Nagad এবং
-                      SSLCommerz payment integration করা
-                      হবে।
-                    </p>
+                      <p className="mt-1 text-xs leading-5 text-gray-500">
+                        পণ্য হাতে পাওয়ার সময়
+                        payment করুন।
+                      </p>
+                    </div>
+
+                    <CheckCircle2
+                      size={20}
+                      className={`ml-auto shrink-0 ${
+                        paymentMethod === "cod"
+                          ? "text-green-700"
+                          : "text-transparent"
+                      }`}
+                    />
                   </div>
+                </label>
+
+                <div className="mt-4 rounded-xl bg-amber-50 p-4">
+                  <p className="text-xs font-bold text-amber-800">
+                    💡 Online Payment Coming Soon
+                  </p>
+
+                  <p className="mt-1 text-[11px] leading-5 text-amber-700">
+                    পরবর্তী ধাপে bKash, Nagad
+                    এবং SSLCommerz payment
+                    integration করা হবে।
+                  </p>
                 </div>
               </section>
             </div>
 
-            {/* RIGHT */}
+            {/* ================= RIGHT ================= */}
+
             <aside className="lg:sticky lg:top-24 lg:h-fit">
               <div className="overflow-hidden rounded-3xl border border-gray-100 bg-white shadow-sm">
-                {/* Summary Header */}
+                {/* HEADER */}
+
                 <div className="bg-green-950 p-5 text-white sm:p-6">
                   <div className="flex items-center gap-3">
                     <ShoppingBag size={20} />
@@ -567,20 +622,21 @@ function Checkout({
                   </p>
                 </div>
 
-                {/* Items */}
+                {/* ITEMS */}
+
                 <div className="max-h-72 overflow-y-auto p-4 sm:p-5">
                   <div className="space-y-4">
                     {safeCart.map((item) => {
-                      const itemPrice = Number(
+                      const price = Number(
                         item?.price || 0
                       );
 
-                      const itemQuantity = Number(
+                      const quantity = Number(
                         item?.quantity || 0
                       );
 
                       const itemTotal =
-                        itemPrice * itemQuantity;
+                        price * quantity;
 
                       return (
                         <div
@@ -590,29 +646,34 @@ function Checkout({
                           <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-xl bg-gray-100">
                             <img
                               src={item.image}
-                              alt={item.name}
+                              alt={
+                                item.name ||
+                                "Product"
+                              }
                               className="h-full w-full object-cover"
                             />
 
                             <span className="absolute right-1 top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-green-800 px-1 text-[9px] font-black text-white">
-                              {itemQuantity}
+                              {quantity}
                             </span>
                           </div>
 
                           <div className="min-w-0 flex-1">
                             <h3 className="truncate text-sm font-bold text-green-950">
-                              {item.name}
+                              {item.name ||
+                                "Product"}
                             </h3>
 
                             <p className="mt-1 text-[11px] text-gray-500">
                               ৳
-                              {itemPrice.toLocaleString()}{" "}
-                              × {itemQuantity}
+                              {price.toLocaleString()}{" "}
+                              × {quantity}
                             </p>
                           </div>
 
                           <p className="shrink-0 text-sm font-black text-green-800">
-                            ৳{itemTotal.toLocaleString()}
+                            ৳
+                            {itemTotal.toLocaleString()}
                           </p>
                         </div>
                       );
@@ -620,14 +681,16 @@ function Checkout({
                   </div>
                 </div>
 
-                {/* Total */}
+                {/* TOTAL */}
+
                 <div className="border-t border-gray-100 p-5 sm:p-6">
                   <div className="space-y-3 text-sm">
                     <div className="flex justify-between text-gray-500">
                       <span>Subtotal</span>
 
                       <span className="font-semibold text-gray-800">
-                        ৳{safeSubtotal.toLocaleString()}
+                        ৳
+                        {safeSubtotal.toLocaleString()}
                       </span>
                     </div>
 
@@ -636,7 +699,7 @@ function Checkout({
 
                       <span className="font-semibold text-gray-800">
                         ৳
-                        {safeDeliveryCharge.toLocaleString()}
+                        {safeDelivery.toLocaleString()}
                       </span>
                     </div>
 
@@ -647,7 +710,8 @@ function Checkout({
                         </span>
 
                         <span className="text-2xl font-black text-green-800">
-                          ৳{safeTotal.toLocaleString()}
+                          ৳
+                          {safeTotal.toLocaleString()}
                         </span>
                       </div>
                     </div>
@@ -655,7 +719,7 @@ function Checkout({
 
                   <button
                     type="submit"
-                    className="mt-5 flex min-h-13 w-full items-center justify-center gap-2 rounded-2xl bg-green-800 px-5 py-3.5 text-sm font-black text-white shadow-lg shadow-green-900/10 transition hover:bg-green-700 active:scale-[0.99]"
+                    className="mt-5 flex min-h-13 w-full items-center justify-center gap-2 rounded-2xl bg-green-800 px-5 py-3.5 text-sm font-black text-white shadow-lg transition hover:bg-green-700 active:scale-[0.99]"
                   >
                     <CheckCircle2 size={18} />
                     Order Confirm করুন
@@ -675,4 +739,17 @@ function Checkout({
   );
 }
 
+/* =========================
+   ERROR TEXT
+========================= */
+
+function ErrorText({ children }) {
+  return (
+    <p className="mt-1.5 text-xs font-semibold text-red-500">
+      {children}
+    </p>
+  );
+}
+
 export default Checkout;
+
