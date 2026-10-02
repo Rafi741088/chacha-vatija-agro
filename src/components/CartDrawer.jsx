@@ -29,17 +29,13 @@ function CartDrawer({
 }) {
   const navigate = useNavigate();
 
-  if (!isOpen) {
-    return null;
-  }
+  const safeCart = Array.isArray(cart)
+    ? cart
+    : [];
 
-  /*
-    Safety calculation:
-    যদি App থেকে subtotal/total undefined আসে,
-    তাহলে Cart থেকেই হিসাব করবে।
-  */
-
-  const safeCart = Array.isArray(cart) ? cart : [];
+  /* =========================
+     SAFE CART COUNT
+  ========================= */
 
   const calculatedCartCount = safeCart.reduce(
     (total, item) =>
@@ -48,42 +44,85 @@ function CartDrawer({
   );
 
   const safeCartCount =
-    Number(cartCount) || calculatedCartCount;
+    Number(cartCount) > 0
+      ? Number(cartCount)
+      : calculatedCartCount;
+
+  /* =========================
+     SAFE SUBTOTAL
+  ========================= */
 
   const calculatedSubtotal = safeCart.reduce(
-    (total, item) =>
-      total +
-      Number(item?.price || 0) *
-        Number(item?.quantity || 0),
+    (total, item) => {
+      const price = Number(item?.price || 0);
+      const quantity = Number(
+        item?.quantity || 0
+      );
+
+      return total + price * quantity;
+    },
     0
   );
 
   const safeSubtotal =
-    Number(cartSubtotal) || calculatedSubtotal;
+    Number(cartSubtotal) > 0
+      ? Number(cartSubtotal)
+      : calculatedSubtotal;
 
-  /*
-    যদি deliveryCharge না আসে,
-    cart থাকলে default ৳80
-  */
+  /* =========================
+     SAFE DELIVERY
+  ========================= */
 
   const safeDeliveryCharge =
-    Number(deliveryCharge) ||
-    (safeCart.length > 0 ? 80 : 0);
+    Number(deliveryCharge) > 0
+      ? Number(deliveryCharge)
+      : safeCart.length > 0
+        ? 80
+        : 0;
+
+  /* =========================
+     SAFE TOTAL
+  ========================= */
 
   const calculatedTotal =
     safeSubtotal + safeDeliveryCharge;
 
   const safeTotal =
-    Number(cartTotal) || calculatedTotal;
+    Number(cartTotal) > 0
+      ? Number(cartTotal)
+      : calculatedTotal;
+
+  /* =========================
+     CHECKOUT
+  ========================= */
 
   const handleCheckout = () => {
+    if (safeCart.length === 0) {
+      return;
+    }
+
     onClose();
+
     navigate("/checkout");
+
+    window.scrollTo({
+      top: 0,
+      behavior: "smooth",
+    });
   };
+
+  /* =========================
+     CLOSED
+  ========================= */
+
+  if (!isOpen) {
+    return null;
+  }
 
   return (
     <div className="fixed inset-0 z-[100]">
-      {/* Overlay */}
+      {/* OVERLAY */}
+
       <button
         type="button"
         aria-label="Close cart"
@@ -91,9 +130,11 @@ function CartDrawer({
         className="absolute inset-0 h-full w-full cursor-default bg-black/50 backdrop-blur-sm"
       />
 
-      {/* Drawer */}
+      {/* DRAWER */}
+
       <aside className="absolute right-0 top-0 flex h-[100dvh] w-full max-w-md flex-col bg-white shadow-2xl sm:w-[430px]">
-        {/* Header */}
+        {/* ================= HEADER ================= */}
+
         <div className="flex shrink-0 items-center justify-between border-b border-gray-100 px-4 py-4 sm:px-5">
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-full bg-green-100">
@@ -124,7 +165,8 @@ function CartDrawer({
           </button>
         </div>
 
-        {/* Empty Cart */}
+        {/* ================= EMPTY CART ================= */}
+
         {safeCart.length === 0 ? (
           <div className="flex flex-1 flex-col items-center justify-center px-6 text-center">
             <div className="flex h-20 w-20 items-center justify-center rounded-full bg-green-50">
@@ -139,8 +181,8 @@ function CartDrawer({
             </h3>
 
             <p className="mt-2 max-w-xs text-sm leading-6 text-gray-500">
-              আপনার পছন্দের তাজা মাছ, ছাগল ও মুরগি
-              Cart-এ যোগ করুন।
+              আপনার পছন্দের তাজা মাছ, ছাগল ও
+              মুরগি Cart-এ যোগ করুন।
             </p>
 
             <button
@@ -164,10 +206,11 @@ function CartDrawer({
           </div>
         ) : (
           <>
-            {/* Cart Items */}
+            {/* ================= CART ITEMS ================= */}
+
             <div className="flex-1 overflow-y-auto px-4 py-4 sm:px-5">
               <div className="space-y-3">
-                {safeCart.map((item) => {
+                {safeCart.map((item, index) => {
                   const itemPrice = Number(
                     item?.price || 0
                   );
@@ -181,61 +224,91 @@ function CartDrawer({
 
                   return (
                     <div
-                      key={item.id}
+                      key={
+                        item?.id ??
+                        `cart-item-${index}`
+                      }
                       className="rounded-2xl border border-gray-100 bg-stone-50 p-3"
                     >
                       <div className="flex gap-3">
-                        {/* Product Image */}
+                        {/* IMAGE */}
+
                         <div className="h-20 w-20 shrink-0 overflow-hidden rounded-xl bg-gray-100 sm:h-24 sm:w-24">
-                          <img
-                            src={item.image}
-                            alt={item.name}
-                            className="h-full w-full object-cover"
-                          />
+                          {item?.image ? (
+                            <img
+                              src={item.image}
+                              alt={
+                                item?.name ||
+                                "Product"
+                              }
+                              className="h-full w-full object-cover"
+                            />
+                          ) : (
+                            <div className="flex h-full w-full items-center justify-center text-xs font-bold text-gray-400">
+                              No Image
+                            </div>
+                          )}
                         </div>
 
-                        {/* Product Info */}
+                        {/* INFO */}
+
                         <div className="min-w-0 flex-1">
                           <div className="flex items-start justify-between gap-2">
                             <div className="min-w-0">
                               <p className="text-[10px] font-bold uppercase tracking-wide text-green-700">
-                                {item.category}
+                                {item?.category ||
+                                  "Agro Product"}
                               </p>
 
                               <h3 className="mt-1 truncate text-sm font-black text-green-950">
-                                {item.name}
+                                {item?.name ||
+                                  "Product"}
                               </h3>
 
                               <p className="mt-1 text-xs text-gray-500">
                                 ৳
                                 {itemPrice.toLocaleString()}{" "}
-                                / {item.unit}
+                                /{" "}
+                                {item?.unit ||
+                                  "unit"}
                               </p>
                             </div>
+
+                            {/* REMOVE */}
 
                             <button
                               type="button"
                               onClick={() =>
-                                removeFromCart(item.id)
+                                removeFromCart(
+                                  item?.id
+                                )
                               }
                               className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-gray-400 transition hover:bg-red-50 hover:text-red-600"
-                              aria-label={`Remove ${item.name}`}
+                              aria-label={`Remove ${
+                                item?.name ||
+                                "product"
+                              }`}
                             >
                               <Trash2 size={16} />
                             </button>
                           </div>
 
-                          {/* Quantity */}
+                          {/* QUANTITY */}
+
                           <div className="mt-3 flex items-center justify-between">
                             <div className="flex items-center overflow-hidden rounded-full border border-gray-200 bg-white">
                               <button
                                 type="button"
                                 onClick={() =>
                                   decreaseQuantity(
-                                    item.id
+                                    item?.id
                                   )
                                 }
-                                className="flex h-8 w-8 items-center justify-center text-gray-600 transition hover:bg-gray-100"
+                                disabled={
+                                  itemQuantity <=
+                                  1
+                                }
+                                className="flex h-8 w-8 items-center justify-center text-gray-600 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-40"
                                 aria-label="Decrease quantity"
                               >
                                 <Minus size={14} />
@@ -249,7 +322,7 @@ function CartDrawer({
                                 type="button"
                                 onClick={() =>
                                   increaseQuantity(
-                                    item.id
+                                    item?.id
                                   )
                                 }
                                 className="flex h-8 w-8 items-center justify-center text-gray-600 transition hover:bg-gray-100"
@@ -271,7 +344,8 @@ function CartDrawer({
                 })}
               </div>
 
-              {/* Clear Cart */}
+              {/* CLEAR */}
+
               <button
                 type="button"
                 onClick={clearCart}
@@ -281,9 +355,11 @@ function CartDrawer({
               </button>
             </div>
 
-            {/* Bottom Summary */}
+            {/* ================= SUMMARY ================= */}
+
             <div className="shrink-0 border-t border-gray-100 bg-white p-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:p-5">
-              {/* Benefits */}
+              {/* BENEFITS */}
+
               <div className="mb-4 grid grid-cols-2 gap-2">
                 <div className="flex items-center gap-2 rounded-xl bg-green-50 p-2.5">
                   <Truck
@@ -308,13 +384,15 @@ function CartDrawer({
                 </div>
               </div>
 
-              {/* Price Summary */}
+              {/* PRICE */}
+
               <div className="space-y-2 text-sm">
                 <div className="flex items-center justify-between text-gray-500">
                   <span>Subtotal</span>
 
                   <span className="font-semibold text-gray-800">
-                    ৳{safeSubtotal.toLocaleString()}
+                    ৳
+                    {safeSubtotal.toLocaleString()}
                   </span>
                 </div>
 
@@ -335,12 +413,14 @@ function CartDrawer({
                   </span>
 
                   <span className="text-xl font-black text-green-800">
-                    ৳{safeTotal.toLocaleString()}
+                    ৳
+                    {safeTotal.toLocaleString()}
                   </span>
                 </div>
               </div>
 
-              {/* Checkout */}
+              {/* CHECKOUT */}
+
               <button
                 type="button"
                 onClick={handleCheckout}
