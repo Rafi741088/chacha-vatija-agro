@@ -22,116 +22,141 @@ import ProductDetails from "./pages/ProductDetails";
 import products from "./data/products";
 
 const DELIVERY_CHARGE = 80;
+const CART_STORAGE_KEY = "chacha_vatija_cart";
+const LAST_ORDER_STORAGE_KEY = "chacha_vatija_last_order";
+
+/* =====================================================
+   MAIN APP CONTENT
+===================================================== */
 
 function AppContent() {
   const navigate = useNavigate();
 
-  /* =========================
+  /* =====================================================
      CART
-  ========================= */
+  ===================================================== */
 
   const [cart, setCart] = useState(() => {
     try {
-      const saved = localStorage.getItem(
-        "chacha_vatija_cart"
-      );
+      const saved = localStorage.getItem(CART_STORAGE_KEY);
 
-      const parsed = saved ? JSON.parse(saved) : [];
+      if (!saved) {
+        return [];
+      }
+
+      const parsed = JSON.parse(saved);
 
       return Array.isArray(parsed) ? parsed : [];
-    } catch {
+    } catch (error) {
+      console.error("Failed to load cart:", error);
       return [];
     }
   });
 
-  const [isCartOpen, setIsCartOpen] =
-    useState(false);
+  const [isCartOpen, setIsCartOpen] = useState(false);
 
-  /* =========================
+  /* =====================================================
      LAST ORDER
-  ========================= */
+  ===================================================== */
 
   const [lastOrder, setLastOrder] = useState(() => {
     try {
-      const saved = localStorage.getItem(
-        "chacha_vatija_last_order"
-      );
+      const saved = localStorage.getItem(LAST_ORDER_STORAGE_KEY);
 
-      return saved ? JSON.parse(saved) : null;
-    } catch {
+      if (!saved) {
+        return null;
+      }
+
+      return JSON.parse(saved);
+    } catch (error) {
+      console.error("Failed to load last order:", error);
       return null;
     }
   });
 
-  /* =========================
+  /* =====================================================
      SAVE CART
-  ========================= */
+  ===================================================== */
 
   useEffect(() => {
-    localStorage.setItem(
-      "chacha_vatija_cart",
-      JSON.stringify(cart)
-    );
+    try {
+      localStorage.setItem(
+        CART_STORAGE_KEY,
+        JSON.stringify(cart)
+      );
+    } catch (error) {
+      console.error("Failed to save cart:", error);
+    }
   }, [cart]);
 
-  /* =========================
+  /* =====================================================
      CART CALCULATIONS
-  ========================= */
+  ===================================================== */
 
-  const cartCount = cart.reduce(
-    (total, item) =>
-      total + Number(item?.quantity || 0),
-    0
-  );
+  const cartCount = cart.reduce((total, item) => {
+    const quantity = Number(item?.quantity);
 
-  const cartSubtotal = cart.reduce(
-    (total, item) =>
-      total +
-      Number(item?.price || 0) *
-        Number(item?.quantity || 0),
-    0
-  );
+    return total + (Number.isFinite(quantity) ? quantity : 0);
+  }, 0);
+
+  const cartSubtotal = cart.reduce((total, item) => {
+    const price = Number(item?.price);
+    const quantity = Number(item?.quantity);
+
+    const safePrice = Number.isFinite(price) ? price : 0;
+    const safeQuantity = Number.isFinite(quantity)
+      ? quantity
+      : 0;
+
+    return total + safePrice * safeQuantity;
+  }, 0);
 
   const deliveryCharge =
     cart.length > 0 ? DELIVERY_CHARGE : 0;
 
-  const cartTotal =
-    cartSubtotal + deliveryCharge;
+  const cartTotal = cartSubtotal + deliveryCharge;
 
-  /* =========================
+  /* =====================================================
      ADD TO CART
-  ========================= */
+  ===================================================== */
 
   const addToCart = (product) => {
-    if (!product) return;
+    if (!product || product.id == null) {
+      return;
+    }
 
     const stock = Number(product.stock || 0);
 
-    if (stock <= 0) return;
+    if (!Number.isFinite(stock) || stock <= 0) {
+      return;
+    }
 
     setCart((currentCart) => {
       const existing = currentCart.find(
-        (item) => item.id === product.id
+        (item) => String(item.id) === String(product.id)
       );
 
+      /* Product already exists */
       if (existing) {
-        if (
-          Number(existing.quantity || 0) >= stock
-        ) {
+        const currentQuantity = Number(
+          existing.quantity || 0
+        );
+
+        if (currentQuantity >= stock) {
           return currentCart;
         }
 
         return currentCart.map((item) =>
-          item.id === product.id
+          String(item.id) === String(product.id)
             ? {
                 ...item,
-                quantity:
-                  Number(item.quantity || 0) + 1,
+                quantity: currentQuantity + 1,
               }
             : item
         );
       }
 
+      /* New product */
       return [
         ...currentCart,
         {
@@ -144,24 +169,25 @@ function AppContent() {
     setIsCartOpen(true);
   };
 
-  /* =========================
-     INCREASE
-  ========================= */
+  /* =====================================================
+     INCREASE QUANTITY
+  ===================================================== */
 
   const increaseQuantity = (id) => {
     setCart((currentCart) =>
       currentCart.map((item) => {
-        if (item.id !== id) {
+        if (String(item.id) !== String(id)) {
           return item;
         }
 
-        const quantity = Number(
-          item.quantity || 0
-        );
-
+        const quantity = Number(item.quantity || 0);
         const stock = Number(item.stock || 0);
 
-        if (quantity >= stock) {
+        if (
+          !Number.isFinite(quantity) ||
+          !Number.isFinite(stock) ||
+          quantity >= stock
+        ) {
           return item;
         }
 
@@ -173,60 +199,65 @@ function AppContent() {
     );
   };
 
-  /* =========================
-     DECREASE
-  ========================= */
+  /* =====================================================
+     DECREASE QUANTITY
+  ===================================================== */
 
   const decreaseQuantity = (id) => {
     setCart((currentCart) =>
       currentCart
         .map((item) => {
-          if (item.id !== id) {
+          if (String(item.id) !== String(id)) {
             return item;
           }
 
+          const quantity = Number(item.quantity || 0);
+
           return {
             ...item,
-            quantity:
-              Number(item.quantity || 0) - 1,
+            quantity: Math.max(quantity - 1, 0),
           };
         })
         .filter(
-          (item) =>
-            Number(item.quantity || 0) > 0
+          (item) => Number(item.quantity || 0) > 0
         )
     );
   };
 
-  /* =========================
-     REMOVE
-  ========================= */
+  /* =====================================================
+     REMOVE FROM CART
+  ===================================================== */
 
   const removeFromCart = (id) => {
     setCart((currentCart) =>
       currentCart.filter(
-        (item) => item.id !== id
+        (item) => String(item.id) !== String(id)
       )
     );
   };
 
-  /* =========================
+  /* =====================================================
      CLEAR CART
-  ========================= */
+  ===================================================== */
 
   const clearCart = () => {
     setCart([]);
-    localStorage.removeItem(
-      "chacha_vatija_cart"
-    );
+
+    try {
+      localStorage.removeItem(CART_STORAGE_KEY);
+    } catch (error) {
+      console.error("Failed to clear cart:", error);
+    }
   };
 
-  /* =========================
+  /* =====================================================
      PRODUCT DETAILS
-  ========================= */
+  ===================================================== */
 
   const handleProductDetails = (product) => {
-    if (!product) return;
+    if (!product || product.id == null) {
+      return;
+    }
 
     navigate(`/product/${product.id}`);
 
@@ -236,9 +267,9 @@ function AppContent() {
     });
   };
 
-  /* =========================
+  /* =====================================================
      ORDER ID
-  ========================= */
+  ===================================================== */
 
   const generateOrderId = () => {
     const number = Math.floor(
@@ -248,13 +279,13 @@ function AppContent() {
     return `CVA-${number}`;
   };
 
-  /* =========================
+  /* =====================================================
      ORDER COMPLETE
-  ========================= */
+  ===================================================== */
 
   const handleOrderComplete = (order) => {
     const completedOrder = {
-      ...order,
+      ...(order || {}),
 
       orderId:
         order?.orderId || generateOrderId(),
@@ -262,28 +293,37 @@ function AppContent() {
       status: "Order Placed",
 
       createdAt:
-        order?.createdAt ||
-        new Date().toISOString(),
+        order?.createdAt || new Date().toISOString(),
 
       subtotal:
-        Number(order?.subtotal || cartSubtotal),
+        order?.subtotal != null
+          ? Number(order.subtotal)
+          : cartSubtotal,
 
       deliveryCharge:
-        Number(
-          order?.deliveryCharge ||
-            deliveryCharge
-        ),
+        order?.deliveryCharge != null
+          ? Number(order.deliveryCharge)
+          : deliveryCharge,
 
       total:
-        Number(order?.total || cartTotal),
+        order?.total != null
+          ? Number(order.total)
+          : cartTotal,
     };
 
     setLastOrder(completedOrder);
 
-    localStorage.setItem(
-      "chacha_vatija_last_order",
-      JSON.stringify(completedOrder)
-    );
+    try {
+      localStorage.setItem(
+        LAST_ORDER_STORAGE_KEY,
+        JSON.stringify(completedOrder)
+      );
+    } catch (error) {
+      console.error(
+        "Failed to save last order:",
+        error
+      );
+    }
 
     clearCart();
 
@@ -297,9 +337,9 @@ function AppContent() {
     });
   };
 
-  /* =========================
+  /* =====================================================
      HOME
-  ========================= */
+  ===================================================== */
 
   const goHome = () => {
     navigate("/");
@@ -310,18 +350,20 @@ function AppContent() {
     });
   };
 
+  /* =====================================================
+     RENDER
+  ===================================================== */
+
   return (
     <div className="min-h-screen bg-stone-50">
-      {/* NAVBAR */}
+      {/* ================= NAVBAR ================= */}
 
       <Navbar
         cartCount={cartCount}
-        onCartClick={() =>
-          setIsCartOpen(true)
-        }
+        onCartClick={() => setIsCartOpen(true)}
       />
 
-      {/* ROUTES */}
+      {/* ================= ROUTES ================= */}
 
       <Routes>
         {/* ================= HOME ================= */}
@@ -334,9 +376,7 @@ function AppContent() {
 
               <Shop
                 addToCart={addToCart}
-                onProductDetails={
-                  handleProductDetails
-                }
+                onProductDetails={handleProductDetails}
               />
 
               <AboutFarm />
@@ -350,7 +390,7 @@ function AppContent() {
           }
         />
 
-        {/* ================= PRODUCT ================= */}
+        {/* ================= PRODUCT DETAILS ================= */}
 
         <Route
           path="/product/:id"
@@ -358,9 +398,7 @@ function AppContent() {
             <DynamicProductDetails
               addToCart={addToCart}
               onBack={goHome}
-              onProductDetails={
-                handleProductDetails
-              }
+              onProductDetails={handleProductDetails}
             />
           }
         />
@@ -376,9 +414,7 @@ function AppContent() {
               deliveryCharge={deliveryCharge}
               cartTotal={cartTotal}
               onBackToShop={goHome}
-              onOrderComplete={
-                handleOrderComplete
-              }
+              onOrderComplete={handleOrderComplete}
             />
           }
         />
@@ -387,22 +423,14 @@ function AppContent() {
 
         <Route
           path="/order-success"
-          element={
-            <OrderSuccess
-              order={lastOrder}
-            />
-          }
+          element={<OrderSuccess order={lastOrder} />}
         />
 
         {/* ================= TRACK ORDER ================= */}
 
         <Route
           path="/track-order"
-          element={
-            <TrackOrder
-              order={lastOrder}
-            />
-          }
+          element={<TrackOrder order={lastOrder} />}
         />
 
         {/* ================= 404 ================= */}
@@ -413,7 +441,7 @@ function AppContent() {
         />
       </Routes>
 
-      {/* CART DRAWER */}
+      {/* ================= CART DRAWER ================= */}
 
       <CartDrawer
         cart={cart}
@@ -422,20 +450,16 @@ function AppContent() {
         deliveryCharge={deliveryCharge}
         cartTotal={cartTotal}
         isOpen={isCartOpen}
-        onClose={() =>
-          setIsCartOpen(false)
-        }
-        increaseQuantity={
-          increaseQuantity
-        }
-        decreaseQuantity={
-          decreaseQuantity
-        }
-        removeFromCart={
-          removeFromCart
-        }
+        onClose={() => setIsCartOpen(false)}
+        increaseQuantity={increaseQuantity}
+        decreaseQuantity={decreaseQuantity}
+        removeFromCart={removeFromCart}
         clearCart={clearCart}
         onCheckout={() => {
+          if (cart.length === 0) {
+            return;
+          }
+
           setIsCartOpen(false);
 
           navigate("/checkout");
@@ -462,8 +486,7 @@ function DynamicProductDetails({
   const { id } = useParams();
 
   const product = products.find(
-    (item) =>
-      String(item.id) === String(id)
+    (item) => String(item.id) === String(id)
   );
 
   if (!product) {
@@ -475,9 +498,7 @@ function DynamicProductDetails({
       product={product}
       addToCart={addToCart}
       onBack={onBack}
-      onProductDetails={
-        onProductDetails
-      }
+      onProductDetails={onProductDetails}
     />
   );
 }
@@ -545,9 +566,7 @@ function OrderSuccess({ order }) {
 
               <span className="text-xl font-black text-green-800">
                 ৳
-                {Number(
-                  order.total || 0
-                ).toLocaleString()}
+                {Number(order.total || 0).toLocaleString()}
               </span>
             </div>
           </>
@@ -565,9 +584,7 @@ function OrderSuccess({ order }) {
           {order && (
             <button
               type="button"
-              onClick={() =>
-                navigate("/track-order")
-              }
+              onClick={() => navigate("/track-order")}
               className="flex-1 rounded-full border border-green-200 px-6 py-3.5 font-bold text-green-800 transition hover:bg-green-50"
             >
               Order Track করুন
@@ -712,9 +729,7 @@ function TrackOrder({ order }) {
 
             <span className="text-2xl font-black text-lime-400">
               ৳
-              {Number(
-                order.total || 0
-              ).toLocaleString()}
+              {Number(order.total || 0).toLocaleString()}
             </span>
           </div>
         </div>
@@ -832,4 +847,3 @@ function App() {
 }
 
 export default App;
-
