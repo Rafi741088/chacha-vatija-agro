@@ -7,76 +7,93 @@ import {
   useParams,
 } from "react-router-dom";
 
+// Components
 import Navbar from "./components/Navbar";
 import CartDrawer from "./components/CartDrawer";
 import FAQ from "./components/FAQ";
 import TrustSection from "./components/TrustSection";
 
+// Pages
 import Home from "./pages/Home";
 import Shop from "./pages/Shop";
 import Checkout from "./pages/Checkout";
+import OrderSuccess from "./pages/OrderSuccess";
 import AboutFarm from "./pages/AboutFarm";
 import ContactFooter from "./pages/ContactFooter";
 import ProductDetails from "./pages/ProductDetails";
 
+// Data
 import products from "./data/products";
 
-const DELIVERY_CHARGE = 80;
-const CART_STORAGE_KEY = "chacha_vatija_cart";
-const LAST_ORDER_STORAGE_KEY = "chacha_vatija_last_order";
+// ============================================================
+// CONSTANTS
+// ============================================================
 
-/* =====================================================
-   MAIN APP CONTENT
-===================================================== */
+const DELIVERY_CHARGE = 80;
+
+const CART_STORAGE_KEY = "chacha_vatija_cart";
+
+const LAST_ORDER_STORAGE_KEY =
+  "chacha_vatija_last_order";
+
+// ============================================================
+// APP CONTENT
+// ============================================================
 
 function AppContent() {
   const navigate = useNavigate();
 
-  /* =====================================================
-     CART
-  ===================================================== */
+  // ==========================================================
+  // CART STATE
+  // ==========================================================
 
   const [cart, setCart] = useState(() => {
     try {
-      const saved = localStorage.getItem(CART_STORAGE_KEY);
+      const savedCart = localStorage.getItem(
+        CART_STORAGE_KEY
+      );
 
-      if (!saved) {
-        return [];
-      }
-
-      const parsed = JSON.parse(saved);
-
-      return Array.isArray(parsed) ? parsed : [];
+      return savedCart
+        ? JSON.parse(savedCart)
+        : [];
     } catch (error) {
-      console.error("Failed to load cart:", error);
+      console.error(
+        "Failed to load cart:",
+        error
+      );
+
       return [];
     }
   });
 
-  const [isCartOpen, setIsCartOpen] = useState(false);
+  const [cartOpen, setCartOpen] = useState(false);
 
-  /* =====================================================
-     LAST ORDER
-  ===================================================== */
+  // ==========================================================
+  // LAST ORDER STATE
+  // ==========================================================
 
   const [lastOrder, setLastOrder] = useState(() => {
     try {
-      const saved = localStorage.getItem(LAST_ORDER_STORAGE_KEY);
+      const savedOrder = localStorage.getItem(
+        LAST_ORDER_STORAGE_KEY
+      );
 
-      if (!saved) {
-        return null;
-      }
-
-      return JSON.parse(saved);
+      return savedOrder
+        ? JSON.parse(savedOrder)
+        : null;
     } catch (error) {
-      console.error("Failed to load last order:", error);
+      console.error(
+        "Failed to load last order:",
+        error
+      );
+
       return null;
     }
   });
 
-  /* =====================================================
-     SAVE CART
-  ===================================================== */
+  // ==========================================================
+  // SAVE CART
+  // ==========================================================
 
   useEffect(() => {
     try {
@@ -85,78 +102,64 @@ function AppContent() {
         JSON.stringify(cart)
       );
     } catch (error) {
-      console.error("Failed to save cart:", error);
+      console.error(
+        "Failed to save cart:",
+        error
+      );
     }
   }, [cart]);
 
-  /* =====================================================
-     CART CALCULATIONS
-  ===================================================== */
+  // ==========================================================
+  // CART CALCULATIONS
+  // ==========================================================
 
-  const cartCount = cart.reduce((total, item) => {
-    const quantity = Number(item?.quantity);
+  const cartCount = cart.reduce(
+    (total, item) =>
+      total + Number(item.quantity || 0),
+    0
+  );
 
-    return total + (Number.isFinite(quantity) ? quantity : 0);
-  }, 0);
-
-  const cartSubtotal = cart.reduce((total, item) => {
-    const price = Number(item?.price);
-    const quantity = Number(item?.quantity);
-
-    const safePrice = Number.isFinite(price) ? price : 0;
-    const safeQuantity = Number.isFinite(quantity)
-      ? quantity
-      : 0;
-
-    return total + safePrice * safeQuantity;
-  }, 0);
+  const cartSubtotal = cart.reduce(
+    (total, item) =>
+      total +
+      Number(item.price || 0) *
+        Number(item.quantity || 0),
+    0
+  );
 
   const deliveryCharge =
-    cart.length > 0 ? DELIVERY_CHARGE : 0;
+    cart.length > 0
+      ? DELIVERY_CHARGE
+      : 0;
 
-  const cartTotal = cartSubtotal + deliveryCharge;
+  const cartTotal =
+    cartSubtotal + deliveryCharge;
 
-  /* =====================================================
-     ADD TO CART
-  ===================================================== */
+  // ==========================================================
+  // ADD TO CART
+  // ==========================================================
 
   const addToCart = (product) => {
-    if (!product || product.id == null) {
-      return;
-    }
-
-    const stock = Number(product.stock || 0);
-
-    if (!Number.isFinite(stock) || stock <= 0) {
-      return;
-    }
+    if (!product) return;
 
     setCart((currentCart) => {
-      const existing = currentCart.find(
-        (item) => String(item.id) === String(product.id)
-      );
-
-      /* Product already exists */
-      if (existing) {
-        const currentQuantity = Number(
-          existing.quantity || 0
+      const existingProduct =
+        currentCart.find(
+          (item) => item.id === product.id
         );
 
-        if (currentQuantity >= stock) {
-          return currentCart;
-        }
-
+      if (existingProduct) {
         return currentCart.map((item) =>
-          String(item.id) === String(product.id)
+          item.id === product.id
             ? {
                 ...item,
-                quantity: currentQuantity + 1,
+                quantity:
+                  Number(item.quantity || 0) + 1,
               }
             : item
         );
       }
 
-      /* New product */
       return [
         ...currentCart,
         {
@@ -166,153 +169,129 @@ function AppContent() {
       ];
     });
 
-    setIsCartOpen(true);
+    setCartOpen(true);
   };
 
-  /* =====================================================
-     INCREASE QUANTITY
-  ===================================================== */
+  // ==========================================================
+  // INCREASE QUANTITY
+  // ==========================================================
 
-  const increaseQuantity = (id) => {
+  const increaseQuantity = (productId) => {
     setCart((currentCart) =>
-      currentCart.map((item) => {
-        if (String(item.id) !== String(id)) {
-          return item;
-        }
-
-        const quantity = Number(item.quantity || 0);
-        const stock = Number(item.stock || 0);
-
-        if (
-          !Number.isFinite(quantity) ||
-          !Number.isFinite(stock) ||
-          quantity >= stock
-        ) {
-          return item;
-        }
-
-        return {
-          ...item,
-          quantity: quantity + 1,
-        };
-      })
-    );
-  };
-
-  /* =====================================================
-     DECREASE QUANTITY
-  ===================================================== */
-
-  const decreaseQuantity = (id) => {
-    setCart((currentCart) =>
-      currentCart
-        .map((item) => {
-          if (String(item.id) !== String(id)) {
-            return item;
-          }
-
-          const quantity = Number(item.quantity || 0);
-
-          return {
-            ...item,
-            quantity: Math.max(quantity - 1, 0),
-          };
-        })
-        .filter(
-          (item) => Number(item.quantity || 0) > 0
-        )
-    );
-  };
-
-  /* =====================================================
-     REMOVE FROM CART
-  ===================================================== */
-
-  const removeFromCart = (id) => {
-    setCart((currentCart) =>
-      currentCart.filter(
-        (item) => String(item.id) !== String(id)
+      currentCart.map((item) =>
+        item.id === productId
+          ? {
+              ...item,
+              quantity:
+                Number(item.quantity || 0) + 1,
+            }
+          : item
       )
     );
   };
 
-  /* =====================================================
-     CLEAR CART
-  ===================================================== */
+  // ==========================================================
+  // DECREASE QUANTITY
+  // ==========================================================
+
+  const decreaseQuantity = (productId) => {
+    setCart((currentCart) =>
+      currentCart
+        .map((item) =>
+          item.id === productId
+            ? {
+                ...item,
+                quantity:
+                  Number(item.quantity || 0) - 1,
+              }
+            : item
+        )
+        .filter(
+          (item) =>
+            Number(item.quantity || 0) > 0
+        )
+    );
+  };
+
+  // ==========================================================
+  // REMOVE FROM CART
+  // ==========================================================
+
+  const removeFromCart = (productId) => {
+    setCart((currentCart) =>
+      currentCart.filter(
+        (item) => item.id !== productId
+      )
+    );
+  };
+
+  // ==========================================================
+  // CLEAR CART
+  // ==========================================================
 
   const clearCart = () => {
     setCart([]);
-
-    try {
-      localStorage.removeItem(CART_STORAGE_KEY);
-    } catch (error) {
-      console.error("Failed to clear cart:", error);
-    }
   };
 
-  /* =====================================================
-     PRODUCT DETAILS
-  ===================================================== */
+  // ==========================================================
+  // PRODUCT DETAILS
+  // ==========================================================
 
   const handleProductDetails = (product) => {
-    if (!product || product.id == null) {
-      return;
-    }
+    if (!product?.id) return;
 
     navigate(`/product/${product.id}`);
-
-    window.scrollTo({
-      top: 0,
-      behavior: "smooth",
-    });
   };
 
-  /* =====================================================
-     ORDER ID
-  ===================================================== */
+  // ==========================================================
+  // GENERATE ORDER ID
+  // ==========================================================
 
   const generateOrderId = () => {
-    const number = Math.floor(
+    const randomNumber = Math.floor(
       100000 + Math.random() * 900000
     );
 
-    return `CVA-${number}`;
+    return `CV-${randomNumber}`;
   };
 
-  /* =====================================================
-     ORDER COMPLETE
-  ===================================================== */
+  // ==========================================================
+  // ORDER COMPLETE
+  // ==========================================================
 
-  const handleOrderComplete = (order) => {
+  const handleOrderComplete = (orderData) => {
     const completedOrder = {
-      ...(order || {}),
+      ...orderData,
 
       orderId:
-        order?.orderId || generateOrderId(),
+        orderData?.orderId ||
+        generateOrderId(),
 
-      status: "Order Placed",
-
-      createdAt:
-        order?.createdAt || new Date().toISOString(),
+      items:
+        orderData?.items ||
+        [...cart],
 
       subtotal:
-        order?.subtotal != null
-          ? Number(order.subtotal)
-          : cartSubtotal,
+        orderData?.subtotal ??
+        cartSubtotal,
 
       deliveryCharge:
-        order?.deliveryCharge != null
-          ? Number(order.deliveryCharge)
-          : deliveryCharge,
+        orderData?.deliveryCharge ??
+        deliveryCharge,
 
       total:
-        order?.total != null
-          ? Number(order.total)
-          : cartTotal,
+        orderData?.total ??
+        cartTotal,
+
+      createdAt:
+        orderData?.createdAt ||
+        new Date().toISOString(),
     };
 
+    // Save order in React state
     setLastOrder(completedOrder);
 
+    // Save order in localStorage
     try {
       localStorage.setItem(
         LAST_ORDER_STORAGE_KEY,
@@ -325,58 +304,78 @@ function AppContent() {
       );
     }
 
-    clearCart();
+    // Clear cart
+    setCart([]);
 
-    setIsCartOpen(false);
+    // Close cart drawer
+    setCartOpen(false);
 
-    navigate("/order-success");
-
-    window.scrollTo({
-      top: 0,
-      behavior: "smooth",
+    // Go to success page
+    navigate("/order-success", {
+      state: {
+        orderId:
+          completedOrder.orderId,
+      },
     });
   };
 
-  /* =====================================================
-     HOME
-  ===================================================== */
-
-  const goHome = () => {
-    navigate("/");
-
-    window.scrollTo({
-      top: 0,
-      behavior: "smooth",
-    });
-  };
-
-  /* =====================================================
-     RENDER
-  ===================================================== */
+  // ==========================================================
+  // RENDER
+  // ==========================================================
 
   return (
-    <div className="min-h-screen bg-stone-50">
-      {/* ================= NAVBAR ================= */}
-
+    <>
       <Navbar
         cartCount={cartCount}
-        onCartClick={() => setIsCartOpen(true)}
+        onCartClick={() =>
+          setCartOpen(true)
+        }
       />
 
-      {/* ================= ROUTES ================= */}
+      <CartDrawer
+        open={cartOpen}
+        onClose={() =>
+          setCartOpen(false)
+        }
+        cart={cart}
+        cartCount={cartCount}
+        cartSubtotal={cartSubtotal}
+        deliveryCharge={deliveryCharge}
+        cartTotal={cartTotal}
+        onIncrease={increaseQuantity}
+        onDecrease={decreaseQuantity}
+        onRemove={removeFromCart}
+        onClear={clearCart}
+        onCheckout={() => {
+          setCartOpen(false);
+          navigate("/checkout");
+        }}
+      />
 
       <Routes>
-        {/* ================= HOME ================= */}
+
+        {/* ==================================================
+            HOME
+        ================================================== */}
 
         <Route
           path="/"
           element={
             <>
-              <Home />
+              <Home
+                products={products}
+                onAddToCart={addToCart}
+                onProductDetails={
+                  handleProductDetails
+                }
+              />
 
               <Shop
-                addToCart={addToCart}
-                onProductDetails={handleProductDetails}
+                products={products}
+                onAddToCart={addToCart}
+                onProductDetails={
+                  handleProductDetails
+                }
               />
 
               <AboutFarm />
@@ -390,103 +389,90 @@ function AppContent() {
           }
         />
 
-        {/* ================= PRODUCT DETAILS ================= */}
+        {/* ==================================================
+            PRODUCT DETAILS
+        ================================================== */}
 
         <Route
           path="/product/:id"
           element={
             <DynamicProductDetails
-              addToCart={addToCart}
-              onBack={goHome}
-              onProductDetails={handleProductDetails}
+              products={products}
+              onAddToCart={addToCart}
             />
           }
         />
 
-        {/* ================= CHECKOUT ================= */}
+        {/* ==================================================
+            CHECKOUT
+        ================================================== */}
 
         <Route
           path="/checkout"
           element={
             <Checkout
               cart={cart}
-              cartSubtotal={cartSubtotal}
-              deliveryCharge={deliveryCharge}
-              cartTotal={cartTotal}
-              onBackToShop={goHome}
-              onOrderComplete={handleOrderComplete}
+              subtotal={cartSubtotal}
+              deliveryCharge={
+                deliveryCharge
+              }
+              total={cartTotal}
+              onOrderComplete={
+                handleOrderComplete
+              }
             />
           }
         />
 
-        {/* ================= ORDER SUCCESS ================= */}
+        {/* ==================================================
+            ORDER SUCCESS
+        ================================================== */}
 
         <Route
           path="/order-success"
-          element={<OrderSuccess order={lastOrder} />}
+          element={<OrderSuccess />}
         />
 
-        {/* ================= TRACK ORDER ================= */}
+        {/* ==================================================
+            TRACK ORDER
+        ================================================== */}
 
         <Route
           path="/track-order"
-          element={<TrackOrder order={lastOrder} />}
+          element={
+            <TrackOrder
+              lastOrder={lastOrder}
+            />
+          }
         />
 
-        {/* ================= 404 ================= */}
+        {/* ==================================================
+            404
+        ================================================== */}
 
         <Route
           path="*"
           element={<NotFound />}
         />
+
       </Routes>
-
-      {/* ================= CART DRAWER ================= */}
-
-      <CartDrawer
-        cart={cart}
-        cartCount={cartCount}
-        cartSubtotal={cartSubtotal}
-        deliveryCharge={deliveryCharge}
-        cartTotal={cartTotal}
-        isOpen={isCartOpen}
-        onClose={() => setIsCartOpen(false)}
-        increaseQuantity={increaseQuantity}
-        decreaseQuantity={decreaseQuantity}
-        removeFromCart={removeFromCart}
-        clearCart={clearCart}
-        onCheckout={() => {
-          if (cart.length === 0) {
-            return;
-          }
-
-          setIsCartOpen(false);
-
-          navigate("/checkout");
-
-          window.scrollTo({
-            top: 0,
-            behavior: "smooth",
-          });
-        }}
-      />
-    </div>
+    </>
   );
 }
 
-/* =====================================================
-   DYNAMIC PRODUCT DETAILS
-===================================================== */
+// ============================================================
+// DYNAMIC PRODUCT DETAILS
+// ============================================================
 
 function DynamicProductDetails({
-  addToCart,
-  onBack,
-  onProductDetails,
+  products,
+  onAddToCart,
 }) {
   const { id } = useParams();
 
   const product = products.find(
-    (item) => String(item.id) === String(id)
+    (item) =>
+      String(item.id) === String(id)
   );
 
   if (!product) {
@@ -496,347 +482,394 @@ function DynamicProductDetails({
   return (
     <ProductDetails
       product={product}
-      addToCart={addToCart}
-      onBack={onBack}
-      onProductDetails={onProductDetails}
+      onAddToCart={onAddToCart}
     />
   );
 }
 
-/* =====================================================
-   ORDER SUCCESS
-===================================================== */
+// ============================================================
+// TRACK ORDER
+// ============================================================
 
-function OrderSuccess({ order }) {
+function TrackOrder({ lastOrder }) {
   const navigate = useNavigate();
 
-  const goHome = () => {
-    navigate("/");
+  if (!lastOrder) {
+    return (
+      <main className="min-h-screen bg-stone-50 px-4 py-12 sm:px-6 lg:py-20">
+        <div className="mx-auto max-w-2xl">
 
-    window.scrollTo({
-      top: 0,
-      behavior: "smooth",
-    });
-  };
+          <div className="rounded-3xl border border-green-100 bg-white p-6 text-center shadow-xl sm:p-10">
 
-  return (
-    <section className="flex min-h-[calc(100vh-73px)] items-center justify-center bg-stone-50 px-4 py-16 sm:px-6">
-      <div className="w-full max-w-xl rounded-3xl border border-green-100 bg-white p-7 text-center shadow-xl sm:p-12">
-        {/* Success Icon */}
-
-        <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-green-100">
-          <span className="text-4xl font-black text-green-700">
-            ✓
-          </span>
-        </div>
-
-        <h1 className="mt-7 text-3xl font-black text-green-950 sm:text-4xl">
-          অর্ডার সফল হয়েছে!
-        </h1>
-
-        <p className="mx-auto mt-4 max-w-md text-sm leading-7 text-gray-500 sm:text-base">
-          ধন্যবাদ। আপনার অর্ডারটি সফলভাবে
-          গ্রহণ করা হয়েছে।
-        </p>
-
-        {order && (
-          <>
-            {/* Order ID */}
-
-            <div className="mt-7 rounded-2xl bg-green-50 p-5">
-              <p className="text-xs font-bold uppercase tracking-wider text-green-600">
-                Your Order ID
-              </p>
-
-              <p className="mt-2 break-all text-2xl font-black text-green-900">
-                {order.orderId}
-              </p>
-
-              <p className="mt-2 text-xs text-gray-500">
-                এই Order ID সংরক্ষণ করে রাখুন।
-              </p>
+            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-green-100">
+              <PackageIcon />
             </div>
 
-            {/* Total */}
+            <h1 className="mt-5 text-2xl font-black text-green-950 sm:text-3xl">
+              No Recent Order
+            </h1>
 
-            <div className="mt-4 flex items-center justify-between rounded-2xl bg-stone-50 px-5 py-4">
-              <span className="text-sm font-bold text-gray-500">
-                Order Total
-              </span>
+            <p className="mt-3 text-sm leading-6 text-gray-500">
+              আপনার কোনো recent order পাওয়া যায়নি।
+            </p>
 
-              <span className="text-xl font-black text-green-800">
-                ৳
-                {Number(order.total || 0).toLocaleString()}
-              </span>
-            </div>
-          </>
-        )}
-
-        <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-          <button
-            type="button"
-            onClick={goHome}
-            className="flex-1 rounded-full bg-green-800 px-6 py-3.5 font-bold text-white transition hover:bg-green-700"
-          >
-            Shopping করুন
-          </button>
-
-          {order && (
             <button
               type="button"
-              onClick={() => navigate("/track-order")}
-              className="flex-1 rounded-full border border-green-200 px-6 py-3.5 font-bold text-green-800 transition hover:bg-green-50"
+              onClick={() =>
+                navigate("/")
+              }
+              className="mt-7 inline-flex items-center justify-center rounded-2xl bg-green-800 px-6 py-3 text-sm font-black text-white transition hover:bg-green-700"
             >
-              Order Track করুন
+              Continue Shopping
             </button>
-          )}
-        </div>
-      </div>
-    </section>
-  );
-}
 
-/* =====================================================
-   TRACK ORDER
-===================================================== */
-
-function TrackOrder({ order }) {
-  const navigate = useNavigate();
-
-  if (!order) {
-    return (
-      <section className="flex min-h-[calc(100vh-73px)] items-center justify-center bg-stone-50 px-5 py-20">
-        <div className="text-center">
-          <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-green-50 text-3xl">
-            📦
           </div>
-
-          <h1 className="mt-6 text-3xl font-black text-green-950">
-            কোনো Order পাওয়া যায়নি
-          </h1>
-
-          <p className="mt-3 text-gray-500">
-            প্রথমে একটি order করুন।
-          </p>
-
-          <button
-            type="button"
-            onClick={() => navigate("/")}
-            className="mt-6 rounded-full bg-green-800 px-7 py-3 font-bold text-white transition hover:bg-green-700"
-          >
-            Shop করুন
-          </button>
         </div>
-      </section>
+      </main>
     );
   }
 
   return (
-    <section className="min-h-[calc(100vh-73px)] bg-stone-50 px-4 py-12 sm:px-5 sm:py-16">
+    <main className="min-h-screen bg-stone-50 px-4 py-12 sm:px-6 lg:py-20">
       <div className="mx-auto max-w-3xl">
-        <div className="text-center">
-          <span className="rounded-full bg-green-50 px-4 py-2 text-sm font-bold text-green-800">
-            Order Tracking
-          </span>
 
-          <h1 className="mt-5 text-3xl font-black text-green-950 sm:text-4xl">
-            আপনার Order Track করুন
-          </h1>
+        <div className="overflow-hidden rounded-3xl border border-green-100 bg-white shadow-xl">
 
-          <p className="mt-3 text-sm text-gray-500">
-            Order ID:{" "}
-            <strong className="text-green-800">
-              {order.orderId}
-            </strong>
-          </p>
-        </div>
+          {/* HEADER */}
 
-        {/* Timeline */}
+          <div className="bg-green-900 px-5 py-8 text-center text-white sm:px-10">
 
-        <div className="mt-10 rounded-3xl border border-gray-100 bg-white p-6 shadow-sm sm:p-8">
-          <TimelineItem
-            active
-            number="✓"
-            title="Order Placed"
-            description="আপনার Order সফলভাবে গ্রহণ করা হয়েছে।"
-          />
+            <h1 className="text-2xl font-black sm:text-4xl">
+              Track Your Order
+            </h1>
 
-          <TimelineItem
-            number="2"
-            title="Processing"
-            description="আপনার order প্রস্তুত করা হবে।"
-          />
-
-          <TimelineItem
-            number="3"
-            title="Out for Delivery"
-            description="Delivery rider আপনার কাছে পৌঁছে দেবে।"
-          />
-
-          <TimelineItem
-            last
-            number="4"
-            title="Delivered"
-            description="Order successfully delivered."
-          />
-        </div>
-
-        {/* Customer Information */}
-
-        <div className="mt-6 rounded-3xl border border-gray-100 bg-white p-6 shadow-sm sm:p-8">
-          <h2 className="text-lg font-black text-green-950">
-            Delivery Information
-          </h2>
-
-          <div className="mt-5 space-y-4 text-sm text-gray-600">
-            <p>
-              <span className="font-bold text-gray-900">
-                Name:
-              </span>{" "}
-              {order.customer?.name || "-"}
-            </p>
-
-            <p>
-              <span className="font-bold text-gray-900">
-                Phone:
-              </span>{" "}
-              {order.customer?.phone || "-"}
-            </p>
-
-            <p>
-              <span className="font-bold text-gray-900">
-                District:
-              </span>{" "}
-              {order.customer?.district || "-"}
-            </p>
-
-            <p>
-              <span className="font-bold text-gray-900">
-                Address:
-              </span>{" "}
-              {order.customer?.address || "-"}
+            <p className="mt-2 text-sm text-green-100">
+              আপনার order-এর বর্তমান status দেখুন।
             </p>
           </div>
-        </div>
 
-        {/* Total */}
+          <div className="p-5 sm:p-8">
 
-        <div className="mt-6 rounded-3xl bg-green-950 p-6 text-white">
-          <div className="flex items-center justify-between gap-4">
-            <span className="font-bold text-white/60">
-              Order Total
-            </span>
+            {/* ORDER ID */}
 
-            <span className="text-2xl font-black text-lime-400">
-              ৳
-              {Number(order.total || 0).toLocaleString()}
-            </span>
+            <div className="rounded-2xl border border-green-100 bg-green-50 p-5 text-center">
+
+              <p className="text-xs font-bold uppercase tracking-wider text-green-600">
+                Order ID
+              </p>
+
+              <p className="mt-2 break-all text-2xl font-black text-green-950">
+                {lastOrder.orderId}
+              </p>
+
+            </div>
+
+            {/* TIMELINE */}
+
+            <div className="mt-8 space-y-6">
+
+              <TimelineItem
+                title="Order Received"
+                description="আপনার order সফলভাবে গ্রহণ করা হয়েছে।"
+                active
+              />
+
+              <TimelineItem
+                title="Preparing"
+                description="আপনার পণ্য প্রস্তুত করা হবে।"
+                active
+              />
+
+              <TimelineItem
+                title="Delivery"
+                description="পণ্য আপনার ঠিকানায় পাঠানো হবে।"
+                active={false}
+              />
+
+            </div>
+
+            {/* ORDER SUMMARY */}
+
+            <div className="mt-8 rounded-2xl bg-stone-50 p-5">
+
+              <h2 className="text-lg font-black text-green-950">
+                Order Summary
+              </h2>
+
+              <div className="mt-4 space-y-3">
+
+                {Array.isArray(
+                  lastOrder.items
+                ) &&
+                  lastOrder.items.map(
+                    (item, index) => (
+                      <div
+                        key={
+                          item.id ||
+                          index
+                        }
+                        className="flex items-center justify-between gap-4 text-sm"
+                      >
+                        <div>
+                          <p className="font-bold text-gray-800">
+                            {item.name ||
+                              "Product"}
+                          </p>
+
+                          <p className="text-xs text-gray-500">
+                            Qty:{" "}
+                            {item.quantity ||
+                              1}
+                          </p>
+                        </div>
+
+                        <p className="font-black text-green-800">
+                          ৳
+                          {(
+                            Number(
+                              item.price ||
+                                0
+                            ) *
+                            Number(
+                              item.quantity ||
+                                1
+                            )
+                          ).toLocaleString(
+                            "en-BD"
+                          )}
+                        </p>
+                      </div>
+                    )
+                  )}
+
+              </div>
+
+              <div className="my-5 border-t border-gray-200" />
+
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-500">
+                  Subtotal
+                </span>
+
+                <span className="font-bold">
+                  ৳
+                  {Number(
+                    lastOrder.subtotal ||
+                      0
+                  ).toLocaleString(
+                    "en-BD"
+                  )}
+                </span>
+              </div>
+
+              <div className="mt-2 flex justify-between text-sm">
+                <span className="text-gray-500">
+                  Delivery
+                </span>
+
+                <span className="font-bold">
+                  ৳
+                  {Number(
+                    lastOrder.deliveryCharge ||
+                      0
+                  ).toLocaleString(
+                    "en-BD"
+                  )}
+                </span>
+              </div>
+
+              <div className="mt-4 flex justify-between border-t border-gray-200 pt-4">
+
+                <span className="font-black text-green-950">
+                  Total
+                </span>
+
+                <span className="text-xl font-black text-green-800">
+                  ৳
+                  {Number(
+                    lastOrder.total ||
+                      0
+                  ).toLocaleString(
+                    "en-BD"
+                  )}
+                </span>
+
+              </div>
+
+            </div>
+
+            {/* BACK BUTTON */}
+
+            <button
+              type="button"
+              onClick={() =>
+                navigate("/")
+              }
+              className="mt-7 flex w-full items-center justify-center gap-2 rounded-2xl border border-green-200 bg-white px-5 py-3 text-sm font-black text-green-800 transition hover:bg-green-50"
+            >
+              <ShoppingBagIcon />
+              Continue Shopping
+            </button>
+
           </div>
-        </div>
-
-        <div className="mt-7 text-center">
-          <button
-            type="button"
-            onClick={() => navigate("/")}
-            className="rounded-full bg-green-800 px-7 py-3 font-bold text-white transition hover:bg-green-700"
-          >
-            Home এ ফিরে যান
-          </button>
         </div>
       </div>
-    </section>
+    </main>
   );
 }
 
-/* =====================================================
-   TIMELINE ITEM
-===================================================== */
+// ============================================================
+// TIMELINE ITEM
+// ============================================================
 
 function TimelineItem({
-  active = false,
-  last = false,
-  number,
   title,
   description,
+  active,
 }) {
   return (
     <div className="flex gap-4">
+
       <div className="flex flex-col items-center">
+
         <div
-          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full font-black ${
+          className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full ${
             active
-              ? "bg-green-800 text-white"
-              : "border-2 border-gray-200 bg-gray-50 text-gray-400"
+              ? "bg-green-100 text-green-700"
+              : "bg-gray-100 text-gray-400"
           }`}
         >
-          {number}
+          {active ? (
+            <CheckIcon />
+          ) : (
+            <PackageIcon />
+          )}
         </div>
 
-        {!last && (
-          <div className="mt-2 h-full min-h-8 w-px bg-gray-200" />
-        )}
+        <div className="mt-2 h-full w-px bg-gray-200" />
+
       </div>
 
-      <div className="pb-8">
-        <h3
-          className={`font-black ${
-            active
-              ? "text-green-950"
-              : "text-gray-600"
-          }`}
-        >
+      <div className="pb-5">
+
+        <h3 className="font-black text-green-950">
           {title}
         </h3>
 
-        <p className="mt-1 text-sm leading-6 text-gray-400">
+        <p className="mt-1 text-sm leading-6 text-gray-500">
           {description}
         </p>
+
       </div>
     </div>
   );
 }
 
-/* =====================================================
-   404
-===================================================== */
+// ============================================================
+// NOT FOUND
+// ============================================================
 
 function NotFound() {
   const navigate = useNavigate();
 
   return (
-    <section className="flex min-h-[calc(100vh-73px)] items-center justify-center bg-stone-50 px-5">
-      <div className="text-center">
-        <p className="text-sm font-bold uppercase tracking-[0.3em] text-green-600">
-          Chacha & Vatija Agro
+    <main className="flex min-h-[70vh] items-center justify-center bg-stone-50 px-4 py-12">
+
+      <div className="max-w-md text-center">
+
+        <p className="text-7xl font-black text-green-800">
+          404
         </p>
 
-        <h1 className="mt-3 text-7xl font-black text-green-800">
-          404
+        <h1 className="mt-4 text-2xl font-black text-green-950">
+          Page Not Found
         </h1>
 
-        <h2 className="mt-4 text-2xl font-black text-green-950">
-          Page Not Found
-        </h2>
-
-        <p className="mt-2 text-gray-500">
-          আপনি যে page খুঁজছেন সেটি পাওয়া যায়নি।
+        <p className="mt-3 text-sm leading-6 text-gray-500">
+          আপনি যে pageটি খুঁজছেন সেটি পাওয়া যায়নি।
         </p>
 
         <button
           type="button"
-          onClick={() => navigate("/")}
-          className="mt-7 rounded-full bg-green-800 px-7 py-3 font-bold text-white transition hover:bg-green-700"
+          onClick={() =>
+            navigate("/")
+          }
+          className="mt-7 rounded-2xl bg-green-800 px-6 py-3 text-sm font-black text-white transition hover:bg-green-700"
         >
-          Home এ যান
+          Go Home
         </button>
+
       </div>
-    </section>
+    </main>
   );
 }
 
-/* =====================================================
-   APP
-===================================================== */
+// ============================================================
+// SIMPLE ICONS
+// ============================================================
+
+function CheckIcon() {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width="20"
+      height="20"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="3"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M20 6 9 17l-5-5" />
+    </svg>
+  );
+}
+
+function PackageIcon() {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width="22"
+      height="22"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="m16.5 9.4-9-5.19" />
+      <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z" />
+      <path d="M3.27 6.96 12 12.01l8.73-5.05" />
+      <path d="M12 22.08V12" />
+    </svg>
+  );
+}
+
+function ShoppingBagIcon() {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width="18"
+      height="18"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z" />
+      <path d="M3 6h18" />
+      <path d="M16 10a4 4 0 0 1-8 0" />
+    </svg>
+  );
+}
+
+// ============================================================
+// ROOT APP
+// ============================================================
 
 function App() {
   return (

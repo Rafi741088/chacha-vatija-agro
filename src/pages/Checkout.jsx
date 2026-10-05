@@ -11,7 +11,6 @@ import {
   Truck,
   ShieldCheck,
 } from "lucide-react";
- 
 
 function Checkout({
   cart = [],
@@ -20,56 +19,66 @@ function Checkout({
   cartTotal = 0,
   onBackToShop = () => {},
   onOrderComplete = () => {},
-}) {
-  const safeCart = Array.isArray(cart)
-    ? cart
-    : [];
+})  {
+  const safeCart = Array.isArray(cart) ? cart : [];
 
   /* =========================
-     SAFE CALCULATIONS
+     SAFE PRICE CALCULATION
   ========================= */
 
   const calculatedSubtotal = safeCart.reduce(
-    (total, item) =>
-      total +
-      Number(item?.price || 0) *
-        Number(item?.quantity || 0),
+    (total, item) => {
+      const price = Number(item?.price) || 0;
+      const quantity = Number(item?.quantity) || 0;
+
+      return total + price * quantity;
+    },
     0
   );
 
-  const safeSubtotal =
-    Number(cartSubtotal) ||
-    calculatedSubtotal;
+  const passedSubtotal = Number(cartSubtotal);
 
-  const safeDelivery =
-    Number(deliveryCharge) ||
-    (safeCart.length > 0 ? 80 : 0);
+  const safeSubtotal =
+    Number.isFinite(passedSubtotal) && passedSubtotal > 0
+      ? passedSubtotal
+      : calculatedSubtotal;
+
+  const passedDelivery = Number(deliveryCharge);
+
+  const safeDeliveryCharge =
+    Number.isFinite(passedDelivery) && passedDelivery >= 0
+      ? passedDelivery
+      : safeCart.length > 0
+        ? 80
+        : 0;
 
   const calculatedTotal =
-    safeSubtotal + safeDelivery;
+    safeSubtotal + safeDeliveryCharge;
+
+  const passedTotal = Number(cartTotal);
 
   const safeTotal =
-    Number(cartTotal) ||
-    calculatedTotal;
+    Number.isFinite(passedTotal) && passedTotal > 0
+      ? passedTotal
+      : calculatedTotal;
 
   const totalItems = safeCart.reduce(
     (total, item) =>
-      total + Number(item?.quantity || 0),
+      total + (Number(item?.quantity) || 0),
     0
   );
 
   /* =========================
-     FORM
+     FORM STATE
   ========================= */
 
-  const [formData, setFormData] =
-    useState({
-      name: "",
-      phone: "",
-      district: "",
-      address: "",
-      note: "",
-    });
+  const [formData, setFormData] = useState({
+    name: "",
+    phone: "",
+    district: "",
+    address: "",
+    note: "",
+  });
 
   const [paymentMethod, setPaymentMethod] =
     useState("cod");
@@ -77,26 +86,21 @@ function Checkout({
   const [errors, setErrors] = useState({});
 
   /* =========================
-     CHANGE
+     HANDLE INPUT
   ========================= */
 
   const handleChange = (event) => {
-    const {
-      name,
-      value,
-    } = event.target;
+    const { name, value } = event.target;
 
     setFormData((previous) => ({
       ...previous,
       [name]: value,
     }));
 
-    if (errors[name]) {
-      setErrors((previous) => ({
-        ...previous,
-        [name]: "",
-      }));
-    }
+    setErrors((previous) => ({
+      ...previous,
+      [name]: "",
+    }));
   };
 
   /* =========================
@@ -106,19 +110,17 @@ function Checkout({
   const validateForm = () => {
     const newErrors = {};
 
-    if (!formData.name.trim()) {
-      newErrors.name =
-        "আপনার নাম লিখুন";
+    const name = formData.name.trim();
+    const phone = formData.phone.trim();
+    const address = formData.address.trim();
+
+    if (!name) {
+      newErrors.name = "আপনার নাম লিখুন";
     }
 
-    if (!formData.phone.trim()) {
-      newErrors.phone =
-        "মোবাইল নম্বর লিখুন";
-    } else if (
-      !/^01[3-9]\d{8}$/.test(
-        formData.phone.trim()
-      )
-    ) {
+    if (!phone) {
+      newErrors.phone = "মোবাইল নম্বর লিখুন";
+    } else if (!/^01[3-9]\d{8}$/.test(phone)) {
       newErrors.phone =
         "সঠিক ১১ সংখ্যার মোবাইল নম্বর দিন";
     }
@@ -128,20 +130,18 @@ function Checkout({
         "জেলা নির্বাচন করুন";
     }
 
-    if (!formData.address.trim()) {
+    if (!address) {
       newErrors.address =
         "সম্পূর্ণ ঠিকানা লিখুন";
     }
 
     setErrors(newErrors);
 
-    return (
-      Object.keys(newErrors).length === 0
-    );
+    return Object.keys(newErrors).length === 0;
   };
 
   /* =========================
-     SUBMIT
+     PLACE ORDER
   ========================= */
 
   const handleSubmit = (event) => {
@@ -155,6 +155,12 @@ function Checkout({
       return;
     }
 
+    /*
+      IMPORTANT:
+      App.jsx will generate the final Order ID.
+      Checkout does NOT generate an ID here.
+    */
+
     const order = {
       customer: {
         name: formData.name.trim(),
@@ -164,19 +170,34 @@ function Checkout({
         note: formData.note.trim(),
       },
 
-      paymentMethod,
+      paymentMethod: paymentMethod,
 
-      items: safeCart.map((item) => ({
-        ...item,
-        price: Number(item?.price || 0),
-        quantity: Number(
-          item?.quantity || 0
-        ),
+      items: safeCart.map((item, index) => ({
+        id:
+          item?.id ??
+          `product-${index}`,
+
+        name:
+          item?.name ||
+          "Agro Product",
+
+        image:
+          item?.image || "",
+
+        price:
+          Number(item?.price) || 0,
+
+        quantity:
+          Number(item?.quantity) || 0,
+
+        unit:
+          item?.unit || "unit",
       })),
 
       subtotal: safeSubtotal,
 
-      deliveryCharge: safeDelivery,
+      deliveryCharge:
+        safeDeliveryCharge,
 
       total: safeTotal,
 
@@ -187,11 +208,11 @@ function Checkout({
     };
 
     /*
-      App.jsx will:
-      - generate Order ID
-      - save order
-      - clear cart
-      - navigate success page
+      App.jsx:
+      - generates Order ID
+      - saves order
+      - clears cart
+      - navigates to success page
     */
 
     onOrderComplete(order);
@@ -203,11 +224,11 @@ function Checkout({
 
   if (safeCart.length === 0) {
     return (
-      <main className="min-h-[calc(100dvh-72px)] bg-stone-50 px-4 py-16 sm:px-6 lg:px-8">
-        <div className="mx-auto flex max-w-xl flex-col items-center rounded-3xl bg-white p-8 text-center shadow-sm sm:p-12">
-          <div className="flex h-20 w-20 items-center justify-center rounded-full bg-green-50">
+      <main className="min-h-screen bg-stone-50 px-4 py-16">
+        <div className="mx-auto max-w-xl rounded-3xl bg-white p-8 text-center shadow-sm sm:p-12">
+          <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-green-50">
             <ShoppingBag
-              size={34}
+              size={36}
               className="text-green-700"
             />
           </div>
@@ -217,14 +238,14 @@ function Checkout({
           </h1>
 
           <p className="mt-2 text-sm leading-6 text-gray-500">
-            Checkout করার জন্য প্রথমে কিছু
-            পণ্য Cart-এ যোগ করুন।
+            Checkout করার জন্য প্রথমে কিছু পণ্য
+            Cart-এ যোগ করুন।
           </p>
 
           <button
             type="button"
             onClick={onBackToShop}
-            className="mt-6 inline-flex min-h-12 items-center gap-2 rounded-full bg-green-800 px-6 py-3 text-sm font-black text-white transition hover:bg-green-700"
+            className="mt-6 inline-flex items-center gap-2 rounded-full bg-green-800 px-6 py-3 text-sm font-black text-white transition hover:bg-green-700"
           >
             <ArrowLeft size={17} />
             Shopping শুরু করুন
@@ -235,9 +256,12 @@ function Checkout({
   }
 
   return (
-    <main className="min-h-[calc(100dvh-72px)] bg-stone-50 px-4 py-8 sm:px-6 sm:py-12 lg:px-8">
+    <main className="min-h-screen bg-stone-50 px-4 py-8 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-7xl">
-        {/* HEADER */}
+
+        {/* =========================
+            HEADER
+        ========================= */}
 
         <div className="mb-8">
           <button
@@ -249,32 +273,34 @@ function Checkout({
             Continue Shopping
           </button>
 
-          <div className="mt-5">
-            <p className="text-xs font-black uppercase tracking-[0.18em] text-amber-600">
-              Chacha & Vatija Agro
-            </p>
+          <p className="mt-5 text-xs font-black uppercase tracking-[0.18em] text-amber-600">
+            Chacha & Vatija Agro
+          </p>
 
-            <h1 className="mt-2 text-3xl font-black tracking-tight text-green-950 sm:text-4xl">
-              Checkout
-            </h1>
+          <h1 className="mt-2 text-3xl font-black text-green-950 sm:text-4xl">
+            Checkout
+          </h1>
 
-            <p className="mt-2 text-sm text-gray-500">
-              আপনার delivery information দিয়ে
-              order সম্পন্ন করুন।
-            </p>
-          </div>
+          <p className="mt-2 text-sm text-gray-500">
+            আপনার delivery information দিয়ে
+            order সম্পন্ন করুন।
+          </p>
         </div>
 
         <form onSubmit={handleSubmit}>
           <div className="grid gap-6 lg:grid-cols-[1fr_400px]">
-            {/* ================= LEFT ================= */}
+
+            {/* =========================
+                LEFT SIDE
+            ========================= */}
 
             <div className="space-y-6">
-              {/* CUSTOMER */}
+
+              {/* CUSTOMER INFORMATION */}
 
               <section className="rounded-3xl border border-gray-100 bg-white p-5 shadow-sm sm:p-7">
                 <div className="flex items-start gap-3">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-green-100">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-green-100">
                     <UserRound
                       size={19}
                       className="text-green-800"
@@ -287,19 +313,19 @@ function Checkout({
                     </h2>
 
                     <p className="mt-1 text-xs text-gray-500">
-                      আপনার সঠিক তথ্য দিন যাতে
-                      আমরা যোগাযোগ করতে পারি।
+                      আপনার সঠিক তথ্য দিন।
                     </p>
                   </div>
                 </div>
 
                 <div className="mt-6 grid gap-5 sm:grid-cols-2">
+
                   {/* NAME */}
 
                   <div>
                     <label
                       htmlFor="name"
-                      className="mb-2 block text-xs font-bold text-gray-700 sm:text-sm"
+                      className="mb-2 block text-sm font-bold text-gray-700"
                     >
                       আপনার নাম{" "}
                       <span className="text-red-500">
@@ -319,8 +345,8 @@ function Checkout({
                         type="text"
                         value={formData.name}
                         onChange={handleChange}
-                        placeholder="যেমন: Abidur Rahman"
-                        className={`min-h-12 w-full rounded-xl border bg-white pl-11 pr-4 text-sm outline-none transition focus:ring-4 ${
+                        placeholder="আপনার নাম"
+                        className={`min-h-12 w-full rounded-xl border pl-11 pr-4 text-sm outline-none transition focus:ring-4 ${
                           errors.name
                             ? "border-red-400 focus:ring-red-100"
                             : "border-gray-200 focus:border-green-600 focus:ring-green-100"
@@ -340,7 +366,7 @@ function Checkout({
                   <div>
                     <label
                       htmlFor="phone"
-                      className="mb-2 block text-xs font-bold text-gray-700 sm:text-sm"
+                      className="mb-2 block text-sm font-bold text-gray-700"
                     >
                       মোবাইল নম্বর{" "}
                       <span className="text-red-500">
@@ -359,11 +385,11 @@ function Checkout({
                         name="phone"
                         type="tel"
                         inputMode="numeric"
+                        maxLength={11}
                         value={formData.phone}
                         onChange={handleChange}
                         placeholder="01XXXXXXXXX"
-                        maxLength={11}
-                        className={`min-h-12 w-full rounded-xl border bg-white pl-11 pr-4 text-sm outline-none transition focus:ring-4 ${
+                        className={`min-h-12 w-full rounded-xl border pl-11 pr-4 text-sm outline-none transition focus:ring-4 ${
                           errors.phone
                             ? "border-red-400 focus:ring-red-100"
                             : "border-gray-200 focus:border-green-600 focus:ring-green-100"
@@ -383,7 +409,7 @@ function Checkout({
                   <div>
                     <label
                       htmlFor="district"
-                      className="mb-2 block text-xs font-bold text-gray-700 sm:text-sm"
+                      className="mb-2 block text-sm font-bold text-gray-700"
                     >
                       জেলা{" "}
                       <span className="text-red-500">
@@ -412,12 +438,12 @@ function Checkout({
                           জেলা নির্বাচন করুন
                         </option>
 
-                        <option value="Barisal">
-                          বরিশাল
-                        </option>
-
                         <option value="Dhaka">
                           ঢাকা
+                        </option>
+
+                        <option value="Barishal">
+                          বরিশাল
                         </option>
 
                         <option value="Chattogram">
@@ -443,6 +469,18 @@ function Checkout({
                         <option value="Mymensingh">
                           ময়মনসিংহ
                         </option>
+
+                        <option value="Gazipur">
+                          গাজীপুর
+                        </option>
+
+                        <option value="Narayanganj">
+                          নারায়ণগঞ্জ
+                        </option>
+
+                        <option value="Cumilla">
+                          কুমিল্লা
+                        </option>
                       </select>
                     </div>
 
@@ -458,7 +496,7 @@ function Checkout({
                   <div className="sm:col-span-2">
                     <label
                       htmlFor="address"
-                      className="mb-2 block text-xs font-bold text-gray-700 sm:text-sm"
+                      className="mb-2 block text-sm font-bold text-gray-700"
                     >
                       সম্পূর্ণ ঠিকানা{" "}
                       <span className="text-red-500">
@@ -469,11 +507,11 @@ function Checkout({
                     <textarea
                       id="address"
                       name="address"
+                      rows={4}
                       value={formData.address}
                       onChange={handleChange}
-                      rows={4}
                       placeholder="বাড়ি/রোড, এলাকা, থানা/উপজেলা..."
-                      className={`w-full resize-none rounded-xl border bg-white px-4 py-3 text-sm outline-none transition focus:ring-4 ${
+                      className={`w-full resize-none rounded-xl border px-4 py-3 text-sm outline-none transition focus:ring-4 ${
                         errors.address
                           ? "border-red-400 focus:ring-red-100"
                           : "border-gray-200 focus:border-green-600 focus:ring-green-100"
@@ -492,7 +530,7 @@ function Checkout({
                   <div className="sm:col-span-2">
                     <label
                       htmlFor="note"
-                      className="mb-2 block text-xs font-bold text-gray-700 sm:text-sm"
+                      className="mb-2 block text-sm font-bold text-gray-700"
                     >
                       Order Note{" "}
                       <span className="font-normal text-gray-400">
@@ -503,11 +541,11 @@ function Checkout({
                     <textarea
                       id="note"
                       name="note"
+                      rows={3}
                       value={formData.note}
                       onChange={handleChange}
-                      rows={3}
-                      placeholder="Delivery সম্পর্কে কোনো বিশেষ নির্দেশনা থাকলে লিখুন..."
-                      className="w-full resize-none rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-green-600 focus:ring-4 focus:ring-green-100"
+                      placeholder="কোনো বিশেষ নির্দেশনা থাকলে লিখুন..."
+                      className="w-full resize-none rounded-xl border border-gray-200 px-4 py-3 text-sm outline-none transition focus:border-green-600 focus:ring-4 focus:ring-green-100"
                     />
                   </div>
                 </div>
@@ -517,7 +555,7 @@ function Checkout({
 
               <section className="rounded-3xl border border-gray-100 bg-white p-5 shadow-sm sm:p-7">
                 <div className="flex items-start gap-3">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-amber-100">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-amber-100">
                     <CreditCard
                       size={19}
                       className="text-amber-700"
@@ -530,26 +568,23 @@ function Checkout({
                     </h2>
 
                     <p className="mt-1 text-xs text-gray-500">
-                      এখন Cash on Delivery দিয়ে
-                      order করুন।
+                      এখন Cash on Delivery available।
                     </p>
                   </div>
                 </div>
 
                 <label
-                  className={`mt-6 flex cursor-pointer items-start gap-4 rounded-2xl border p-4 transition ${
+                  className={`mt-6 flex cursor-pointer gap-4 rounded-2xl border p-4 ${
                     paymentMethod === "cod"
                       ? "border-green-700 bg-green-50"
-                      : "border-gray-200 bg-white"
+                      : "border-gray-200"
                   }`}
                 >
                   <input
                     type="radio"
                     name="paymentMethod"
                     value="cod"
-                    checked={
-                      paymentMethod === "cod"
-                    }
+                    checked={paymentMethod === "cod"}
                     onChange={(event) =>
                       setPaymentMethod(
                         event.target.value
@@ -559,12 +594,10 @@ function Checkout({
                   />
 
                   <div className="flex flex-1 items-start gap-3">
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white shadow-sm">
-                      <Truck
-                        size={19}
-                        className="text-green-700"
-                      />
-                    </div>
+                    <Truck
+                      size={22}
+                      className="mt-1 text-green-700"
+                    />
 
                     <div>
                       <p className="text-sm font-black text-green-950">
@@ -576,37 +609,31 @@ function Checkout({
                         payment করুন।
                       </p>
                     </div>
-
-                    <CheckCircle2
-                      size={20}
-                      className={`ml-auto shrink-0 ${
-                        paymentMethod === "cod"
-                          ? "text-green-700"
-                          : "text-transparent"
-                      }`}
-                    />
                   </div>
                 </label>
 
                 <div className="mt-4 rounded-xl bg-amber-50 p-4">
                   <p className="text-xs font-bold text-amber-800">
-                    💡 Online Payment Coming Soon
+                    Online Payment Coming Soon
                   </p>
 
                   <p className="mt-1 text-[11px] leading-5 text-amber-700">
-                    পরবর্তী ধাপে bKash, Nagad
-                    এবং SSLCommerz payment
-                    integration করা হবে।
+                    পরবর্তী ধাপে bKash, Nagad এবং
+                    অন্যান্য payment integration
+                    করা হবে।
                   </p>
                 </div>
               </section>
             </div>
 
-            {/* ================= RIGHT ================= */}
+            {/* =========================
+                RIGHT SIDE
+            ========================= */}
 
             <aside className="lg:sticky lg:top-24 lg:h-fit">
               <div className="overflow-hidden rounded-3xl border border-gray-100 bg-white shadow-sm">
-                {/* HEADER */}
+
+                {/* SUMMARY HEADER */}
 
                 <div className="bg-green-950 p-5 text-white sm:p-6">
                   <div className="flex items-center gap-3">
@@ -622,69 +649,79 @@ function Checkout({
                   </p>
                 </div>
 
-                {/* ITEMS */}
+                {/* PRODUCTS */}
 
-                <div className="max-h-72 overflow-y-auto p-4 sm:p-5">
+                <div className="max-h-80 overflow-y-auto p-5">
                   <div className="space-y-4">
-                    {safeCart.map((item) => {
-                      const price = Number(
-                        item?.price || 0
-                      );
+                    {safeCart.map(
+                      (item, index) => {
+                        const price =
+                          Number(item?.price) || 0;
 
-                      const quantity = Number(
-                        item?.quantity || 0
-                      );
+                        const quantity =
+                          Number(item?.quantity) || 0;
 
-                      const itemTotal =
-                        price * quantity;
+                        const itemTotal =
+                          price * quantity;
 
-                      return (
-                        <div
-                          key={item.id}
-                          className="flex gap-3"
-                        >
-                          <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-xl bg-gray-100">
-                            <img
-                              src={item.image}
-                              alt={
-                                item.name ||
-                                "Product"
-                              }
-                              className="h-full w-full object-cover"
-                            />
+                        return (
+                          <div
+                            key={
+                              item?.id ??
+                              `checkout-${index}`
+                            }
+                            className="flex gap-3"
+                          >
+                            <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-xl bg-gray-100">
+                              {item?.image ? (
+                                <img
+                                  src={item.image}
+                                  alt={
+                                    item?.name ||
+                                    "Product"
+                                  }
+                                  className="h-full w-full object-cover"
+                                />
+                              ) : (
+                                <div className="flex h-full w-full items-center justify-center text-[9px] text-gray-400">
+                                  No Image
+                                </div>
+                              )}
 
-                            <span className="absolute right-1 top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-green-800 px-1 text-[9px] font-black text-white">
-                              {quantity}
-                            </span>
-                          </div>
+                              <span className="absolute right-1 top-1 rounded-full bg-green-800 px-1.5 py-0.5 text-[9px] font-black text-white">
+                                {quantity}
+                              </span>
+                            </div>
 
-                          <div className="min-w-0 flex-1">
-                            <h3 className="truncate text-sm font-bold text-green-950">
-                              {item.name ||
-                                "Product"}
-                            </h3>
+                            <div className="min-w-0 flex-1">
+                              <h3 className="truncate text-sm font-bold text-green-950">
+                                {item?.name ||
+                                  "Agro Product"}
+                              </h3>
 
-                            <p className="mt-1 text-[11px] text-gray-500">
+                              <p className="mt-1 text-[11px] text-gray-500">
+                                ৳
+                                {price.toLocaleString()}{" "}
+                                × {quantity}
+                              </p>
+                            </div>
+
+                            <p className="shrink-0 text-sm font-black text-green-800">
                               ৳
-                              {price.toLocaleString()}{" "}
-                              × {quantity}
+                              {itemTotal.toLocaleString()}
                             </p>
                           </div>
-
-                          <p className="shrink-0 text-sm font-black text-green-800">
-                            ৳
-                            {itemTotal.toLocaleString()}
-                          </p>
-                        </div>
-                      );
-                    })}
+                        );
+                      }
+                    )}
                   </div>
                 </div>
 
-                {/* TOTAL */}
+                {/* PRICE */}
 
                 <div className="border-t border-gray-100 p-5 sm:p-6">
                   <div className="space-y-3 text-sm">
+
                     <div className="flex justify-between text-gray-500">
                       <span>Subtotal</span>
 
@@ -699,7 +736,7 @@ function Checkout({
 
                       <span className="font-semibold text-gray-800">
                         ৳
-                        {safeDelivery.toLocaleString()}
+                        {safeDeliveryCharge.toLocaleString()}
                       </span>
                     </div>
 
@@ -716,6 +753,8 @@ function Checkout({
                       </div>
                     </div>
                   </div>
+
+                  {/* CONFIRM */}
 
                   <button
                     type="submit"
@@ -740,7 +779,7 @@ function Checkout({
 }
 
 /* =========================
-   ERROR TEXT
+   ERROR MESSAGE
 ========================= */
 
 function ErrorText({ children }) {
