@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+
+import { useEffect, useMemo, useState } from "react";
 import {
   BrowserRouter,
   Routes,
@@ -7,372 +8,455 @@ import {
   useParams,
 } from "react-router-dom";
 
-// Components
 import Navbar from "./components/Navbar";
 import CartDrawer from "./components/CartDrawer";
 import FAQ from "./components/FAQ";
 import TrustSection from "./components/TrustSection";
 
-// Pages
 import Home from "./pages/Home";
 import Shop from "./pages/Shop";
 import Checkout from "./pages/Checkout";
-import OrderSuccess from "./pages/OrderSuccess";
 import AboutFarm from "./pages/AboutFarm";
 import ContactFooter from "./pages/ContactFooter";
 import ProductDetails from "./pages/ProductDetails";
 
-// Data
 import products from "./data/products";
 
-// ============================================================
-// CONSTANTS
-// ============================================================
-
-const DELIVERY_CHARGE = 80;
-
-const CART_STORAGE_KEY = "chacha_vatija_cart";
-
-const LAST_ORDER_STORAGE_KEY =
-  "chacha_vatija_last_order";
-
-// ============================================================
-// APP CONTENT
-// ============================================================
+/* =========================================
+   APP CONTENT
+========================================= */
 
 function AppContent() {
-  const navigate = useNavigate();
-
-  // ==========================================================
-  // CART STATE
-  // ==========================================================
+  /* =========================================
+     CART STATE
+  ========================================= */
 
   const [cart, setCart] = useState(() => {
     try {
       const savedCart = localStorage.getItem(
-        CART_STORAGE_KEY
+        "chacha_vatija_cart"
       );
 
-      return savedCart
-        ? JSON.parse(savedCart)
+      if (!savedCart) {
+        return [];
+      }
+
+      const parsedCart = JSON.parse(savedCart);
+
+      return Array.isArray(parsedCart)
+        ? parsedCart
         : [];
-    } catch (error) {
-      console.error(
-        "Failed to load cart:",
-        error
-      );
-
+    } catch {
       return [];
     }
   });
 
-  const [cartOpen, setCartOpen] = useState(false);
+  const [isCartOpen, setIsCartOpen] =
+    useState(false);
 
-  // ==========================================================
-  // LAST ORDER STATE
-  // ==========================================================
+  /* =========================================
+     LAST ORDER
+  ========================================= */
 
   const [lastOrder, setLastOrder] = useState(() => {
     try {
       const savedOrder = localStorage.getItem(
-        LAST_ORDER_STORAGE_KEY
+        "chacha_vatija_last_order"
       );
 
       return savedOrder
         ? JSON.parse(savedOrder)
         : null;
-    } catch (error) {
-      console.error(
-        "Failed to load last order:",
-        error
-      );
-
+    } catch {
       return null;
     }
   });
 
-  // ==========================================================
-  // SAVE CART
-  // ==========================================================
+  const navigate = useNavigate();
+
+  /* =========================================
+     SAVE CART
+  ========================================= */
 
   useEffect(() => {
     try {
       localStorage.setItem(
-        CART_STORAGE_KEY,
+        "chacha_vatija_cart",
         JSON.stringify(cart)
       );
     } catch (error) {
       console.error(
-        "Failed to save cart:",
+        "Cart save error:",
         error
       );
     }
   }, [cart]);
 
-  // ==========================================================
-  // CART CALCULATIONS
-  // ==========================================================
-
-  const cartCount = cart.reduce(
-    (total, item) =>
-      total + Number(item.quantity || 0),
-    0
-  );
-
-  const cartSubtotal = cart.reduce(
-    (total, item) =>
-      total +
-      Number(item.price || 0) *
-        Number(item.quantity || 0),
-    0
-  );
-
-  const deliveryCharge =
-    cart.length > 0
-      ? DELIVERY_CHARGE
-      : 0;
-
-  const cartTotal =
-    cartSubtotal + deliveryCharge;
-
-  // ==========================================================
-  // ADD TO CART
-  // ==========================================================
+  /* =========================================
+     ADD TO CART
+  ========================================= */
 
   const addToCart = (product) => {
-    if (!product) return;
+    if (!product) {
+      console.error(
+        "Add to cart failed: Product not found."
+      );
+      return;
+    }
+
+    const productId = Number(product.id);
+    const stock = Number(product.stock) || 0;
+
+    if (!productId) {
+      console.error(
+        "Add to cart failed: Invalid product ID."
+      );
+      return;
+    }
+
+    if (stock <= 0) {
+      return;
+    }
 
     setCart((currentCart) => {
+      const safeCart = Array.isArray(
+        currentCart
+      )
+        ? currentCart
+        : [];
+
       const existingProduct =
-        currentCart.find(
-          (item) => item.id === product.id
+        safeCart.find(
+          (item) =>
+            Number(item.id) === productId
         );
 
+      /* Product already in cart */
+
       if (existingProduct) {
-        return currentCart.map((item) =>
-          item.id === product.id
+        const currentQuantity =
+          Number(
+            existingProduct.quantity
+          ) || 0;
+
+        if (currentQuantity >= stock) {
+          return safeCart;
+        }
+
+        return safeCart.map((item) =>
+          Number(item.id) === productId
             ? {
                 ...item,
                 quantity:
-                  Number(item.quantity || 0) + 1,
+                  currentQuantity + 1,
               }
             : item
         );
       }
 
+      /* New product */
+
       return [
-        ...currentCart,
+        ...safeCart,
         {
           ...product,
+          id: productId,
+          price:
+            Number(product.price) || 0,
+          stock: stock,
           quantity: 1,
         },
       ];
     });
 
-    setCartOpen(true);
+    /* Open Cart */
+
+    setIsCartOpen(true);
   };
 
-  // ==========================================================
-  // INCREASE QUANTITY
-  // ==========================================================
+  /* =========================================
+     INCREASE QUANTITY
+  ========================================= */
 
-  const increaseQuantity = (productId) => {
-    setCart((currentCart) =>
-      currentCart.map((item) =>
-        item.id === productId
-          ? {
-              ...item,
-              quantity:
-                Number(item.quantity || 0) + 1,
-            }
-          : item
+  const increaseQuantity = (id) => {
+    setCart((currentCart) => {
+      const safeCart = Array.isArray(
+        currentCart
       )
-    );
+        ? currentCart
+        : [];
+
+      return safeCart.map((item) => {
+        if (Number(item.id) !== Number(id)) {
+          return item;
+        }
+
+        const quantity =
+          Number(item.quantity) || 0;
+
+        const stock =
+          Number(item.stock) || 0;
+
+        if (quantity >= stock) {
+          return item;
+        }
+
+        return {
+          ...item,
+          quantity: quantity + 1,
+        };
+      });
+    });
   };
 
-  // ==========================================================
-  // DECREASE QUANTITY
-  // ==========================================================
+  /* =========================================
+     DECREASE QUANTITY
+  ========================================= */
 
-  const decreaseQuantity = (productId) => {
-    setCart((currentCart) =>
-      currentCart
-        .map((item) =>
-          item.id === productId
-            ? {
-                ...item,
-                quantity:
-                  Number(item.quantity || 0) - 1,
-              }
-            : item
-        )
+  const decreaseQuantity = (id) => {
+    setCart((currentCart) => {
+      const safeCart = Array.isArray(
+        currentCart
+      )
+        ? currentCart
+        : [];
+
+      return safeCart
+        .map((item) => {
+          if (
+            Number(item.id) !== Number(id)
+          ) {
+            return item;
+          }
+
+          const quantity =
+            Number(item.quantity) || 0;
+
+          return {
+            ...item,
+            quantity: quantity - 1,
+          };
+        })
         .filter(
           (item) =>
-            Number(item.quantity || 0) > 0
-        )
-    );
+            Number(item.quantity) > 0
+        );
+    });
   };
 
-  // ==========================================================
-  // REMOVE FROM CART
-  // ==========================================================
+  /* =========================================
+     REMOVE PRODUCT
+  ========================================= */
 
-  const removeFromCart = (productId) => {
-    setCart((currentCart) =>
-      currentCart.filter(
-        (item) => item.id !== productId
+  const removeFromCart = (id) => {
+    setCart((currentCart) => {
+      const safeCart = Array.isArray(
+        currentCart
       )
-    );
+        ? currentCart
+        : [];
+
+      return safeCart.filter(
+        (item) =>
+          Number(item.id) !== Number(id)
+      );
+    });
   };
 
-  // ==========================================================
-  // CLEAR CART
-  // ==========================================================
+  /* =========================================
+     CLEAR CART
+  ========================================= */
 
   const clearCart = () => {
     setCart([]);
+
+    try {
+      localStorage.removeItem(
+        "chacha_vatija_cart"
+      );
+    } catch {
+      // ignore
+    }
   };
 
-  // ==========================================================
-  // PRODUCT DETAILS
-  // ==========================================================
+  /* =========================================
+     CART COUNT
+  ========================================= */
 
-  const handleProductDetails = (product) => {
-    if (!product?.id) return;
+  const cartCount = useMemo(() => {
+    return cart.reduce(
+      (total, item) =>
+        total +
+        (Number(item.quantity) || 0),
+      0
+    );
+  }, [cart]);
 
-    navigate(`/product/${product.id}`);
-  };
+  /* =========================================
+     CART SUBTOTAL
+  ========================================= */
 
-  // ==========================================================
-  // GENERATE ORDER ID
-  // ==========================================================
+  const cartSubtotal = useMemo(() => {
+    return cart.reduce(
+      (total, item) => {
+        const price =
+          Number(item.price) || 0;
 
-  const generateOrderId = () => {
-    const randomNumber = Math.floor(
-      100000 + Math.random() * 900000
+        const quantity =
+          Number(item.quantity) || 0;
+
+        return total + price * quantity;
+      },
+      0
+    );
+  }, [cart]);
+
+  /* =========================================
+     DELIVERY
+  ========================================= */
+
+  const deliveryCharge =
+    cart.length > 0 ? 80 : 0;
+
+  /* =========================================
+     TOTAL
+  ========================================= */
+
+  const cartTotal =
+    cartSubtotal + deliveryCharge;
+
+  /* =========================================
+     PRODUCT DETAILS
+  ========================================= */
+
+  const handleProductDetails = (
+    product
+  ) => {
+    if (!product?.id) {
+      return;
+    }
+
+    navigate(
+      `/product/${product.id}`
     );
 
-    return `CV-${randomNumber}`;
+    window.scrollTo({
+      top: 0,
+      behavior: "smooth",
+    });
   };
 
-  // ==========================================================
-  // ORDER COMPLETE
-  // ==========================================================
+  /* =========================================
+     ORDER ID
+  ========================================= */
 
-  const handleOrderComplete = (orderData) => {
+  const generateOrderId = () => {
+    const randomNumber =
+      Math.floor(
+        100000 +
+          Math.random() * 900000
+      );
+
+    return `CVA-${randomNumber}`;
+  };
+
+  /* =========================================
+     ORDER COMPLETE
+  ========================================= */
+
+  const handleOrderComplete = (order) => {
+    if (!order) {
+      return;
+    }
+
     const completedOrder = {
-      ...orderData,
+      ...order,
 
       orderId:
-        orderData?.orderId ||
         generateOrderId(),
 
-      items:
-        orderData?.items ||
-        [...cart],
-
-      subtotal:
-        orderData?.subtotal ??
-        cartSubtotal,
-
-      deliveryCharge:
-        orderData?.deliveryCharge ??
-        deliveryCharge,
-
-      total:
-        orderData?.total ??
-        cartTotal,
+      status:
+        "Order Placed",
 
       createdAt:
-        orderData?.createdAt ||
         new Date().toISOString(),
     };
 
-    // Save order in React state
-    setLastOrder(completedOrder);
+    setLastOrder(
+      completedOrder
+    );
 
-    // Save order in localStorage
     try {
       localStorage.setItem(
-        LAST_ORDER_STORAGE_KEY,
-        JSON.stringify(completedOrder)
+        "chacha_vatija_last_order",
+        JSON.stringify(
+          completedOrder
+        )
       );
     } catch (error) {
       console.error(
-        "Failed to save last order:",
+        "Order save error:",
         error
       );
     }
 
-    // Clear cart
-    setCart([]);
+    clearCart();
 
-    // Close cart drawer
-    setCartOpen(false);
+    setIsCartOpen(false);
 
-    // Go to success page
-    navigate("/order-success", {
-      state: {
-        orderId:
-          completedOrder.orderId,
-      },
+    navigate(
+      "/order-success"
+    );
+
+    window.scrollTo({
+      top: 0,
+      behavior: "smooth",
     });
   };
 
-  // ==========================================================
-  // RENDER
-  // ==========================================================
+  /* =========================================
+     GO HOME
+  ========================================= */
+
+  const goHome = () => {
+    navigate("/");
+
+    window.scrollTo({
+      top: 0,
+      behavior: "smooth",
+    });
+  };
+
+  /* =========================================
+     UI
+  ========================================= */
 
   return (
-    <>
+    <div className="min-h-screen bg-stone-50">
+
       <Navbar
         cartCount={cartCount}
         onCartClick={() =>
-          setCartOpen(true)
+          setIsCartOpen(true)
         }
-      />
-
-      <CartDrawer
-        open={cartOpen}
-        onClose={() =>
-          setCartOpen(false)
-        }
-        cart={cart}
-        cartCount={cartCount}
-        cartSubtotal={cartSubtotal}
-        deliveryCharge={deliveryCharge}
-        cartTotal={cartTotal}
-        onIncrease={increaseQuantity}
-        onDecrease={decreaseQuantity}
-        onRemove={removeFromCart}
-        onClear={clearCart}
-        onCheckout={() => {
-          setCartOpen(false);
-          navigate("/checkout");
-        }}
       />
 
       <Routes>
 
-        {/* ==================================================
+        {/* =========================
             HOME
-        ================================================== */}
+        ========================= */}
 
         <Route
           path="/"
           element={
             <>
-              <Home
-                products={products}
-                onAddToCart={addToCart}
-                onProductDetails={
-                  handleProductDetails
-                }
-              />
+              <Home />
 
               <Shop
-                products={products}
-                onAddToCart={addToCart}
+                addToCart={
+                  addToCart
+                }
                 onProductDetails={
                   handleProductDetails
                 }
@@ -389,34 +473,49 @@ function AppContent() {
           }
         />
 
-        {/* ==================================================
+        {/* =========================
             PRODUCT DETAILS
-        ================================================== */}
+        ========================= */}
 
         <Route
           path="/product/:id"
           element={
             <DynamicProductDetails
-              products={products}
-              onAddToCart={addToCart}
+              addToCart={
+                addToCart
+              }
+              onBack={goHome}
+              onProductDetails={
+                handleProductDetails
+              }
             />
           }
         />
 
-        {/* ==================================================
+        {/* =========================
             CHECKOUT
-        ================================================== */}
+        ========================= */}
 
         <Route
           path="/checkout"
           element={
             <Checkout
               cart={cart}
-              subtotal={cartSubtotal}
+              cartSubtotal={
+                cartSubtotal
+              }
               deliveryCharge={
                 deliveryCharge
               }
-              total={cartTotal}
+              cartTotal={
+                cartTotal
+              }
+              clearCart={
+                clearCart
+              }
+              onBackToShop={
+                goHome
+              }
               onOrderComplete={
                 handleOrderComplete
               }
@@ -424,452 +523,423 @@ function AppContent() {
           }
         />
 
-        {/* ==================================================
+        {/* =========================
             ORDER SUCCESS
-        ================================================== */}
+        ========================= */}
 
         <Route
           path="/order-success"
-          element={<OrderSuccess />}
+          element={
+            <OrderSuccess
+              order={lastOrder}
+            />
+          }
         />
 
-        {/* ==================================================
+        {/* =========================
             TRACK ORDER
-        ================================================== */}
+        ========================= */}
 
         <Route
           path="/track-order"
           element={
             <TrackOrder
-              lastOrder={lastOrder}
+              order={lastOrder}
             />
           }
         />
 
-        {/* ==================================================
-            404
-        ================================================== */}
+        {/* =========================
+            NOT FOUND
+        ========================= */}
 
         <Route
           path="*"
-          element={<NotFound />}
+          element={
+            <NotFound />
+          }
         />
 
       </Routes>
-    </>
+
+      {/* =========================
+          CART DRAWER
+      ========================= */}
+
+      <CartDrawer
+        cart={cart}
+        cartCount={
+          cartCount
+        }
+        cartSubtotal={
+          cartSubtotal
+        }
+        deliveryCharge={
+          deliveryCharge
+        }
+        cartTotal={
+          cartTotal
+        }
+        isOpen={
+          isCartOpen
+        }
+        onClose={() =>
+          setIsCartOpen(false)
+        }
+        increaseQuantity={
+          increaseQuantity
+        }
+        decreaseQuantity={
+          decreaseQuantity
+        }
+        removeFromCart={
+          removeFromCart
+        }
+        clearCart={
+          clearCart
+        }
+        onCheckout={() => {
+          setIsCartOpen(false);
+
+          navigate(
+            "/checkout"
+          );
+
+          window.scrollTo({
+            top: 0,
+            behavior: "smooth",
+          });
+        }}
+      />
+
+    </div>
   );
 }
 
-// ============================================================
-// DYNAMIC PRODUCT DETAILS
-// ============================================================
+/* =========================================
+   DYNAMIC PRODUCT DETAILS
+========================================= */
 
 function DynamicProductDetails({
-  products,
-  onAddToCart,
+  addToCart,
+  onBack,
+  onProductDetails,
 }) {
-  const { id } = useParams();
+  const { id } =
+    useParams();
 
-  const product = products.find(
-    (item) =>
-      String(item.id) === String(id)
-  );
+  const product =
+    products.find(
+      (item) =>
+        Number(item.id) ===
+        Number(id)
+    );
 
   if (!product) {
-    return <NotFound />;
+    return (
+      <NotFound />
+    );
   }
 
   return (
     <ProductDetails
       product={product}
-      onAddToCart={onAddToCart}
+      addToCart={addToCart}
+      onBack={onBack}
+      onProductDetails={
+        onProductDetails
+      }
     />
   );
 }
 
-// ============================================================
-// TRACK ORDER
-// ============================================================
+/* =========================================
+   ORDER SUCCESS
+========================================= */
 
-function TrackOrder({ lastOrder }) {
-  const navigate = useNavigate();
+function OrderSuccess({
+  order,
+}) {
+  const navigate =
+    useNavigate();
 
-  if (!lastOrder) {
-    return (
-      <main className="min-h-screen bg-stone-50 px-4 py-12 sm:px-6 lg:py-20">
-        <div className="mx-auto max-w-2xl">
+  const goHome = () => {
+    navigate("/");
 
-          <div className="rounded-3xl border border-green-100 bg-white p-6 text-center shadow-xl sm:p-10">
+    window.scrollTo({
+      top: 0,
+      behavior: "smooth",
+    });
+  };
 
-            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-green-100">
-              <PackageIcon />
-            </div>
+  return (
+    <section className="flex min-h-[calc(100vh-73px)] items-center justify-center bg-stone-50 px-5 py-20">
+      <div className="w-full max-w-xl rounded-3xl border border-green-100 bg-white p-8 text-center shadow-xl sm:p-12">
 
-            <h1 className="mt-5 text-2xl font-black text-green-950 sm:text-3xl">
-              No Recent Order
-            </h1>
+        <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-green-100">
+          <span className="text-4xl font-black text-green-700">
+            ✓
+          </span>
+        </div>
 
-            <p className="mt-3 text-sm leading-6 text-gray-500">
-              আপনার কোনো recent order পাওয়া যায়নি।
+        <h1 className="mt-7 text-3xl font-black text-green-950">
+          অর্ডার সফল হয়েছে!
+        </h1>
+
+        <p className="mx-auto mt-4 max-w-md leading-7 text-gray-500">
+          ধন্যবাদ। আপনার অর্ডারটি
+          সফলভাবে গ্রহণ করা হয়েছে।
+        </p>
+
+        {order && (
+          <div className="mt-6 rounded-2xl bg-green-50 p-5">
+
+            <p className="text-xs font-bold uppercase tracking-wider text-green-600">
+              Your Order ID
             </p>
 
+            <p className="mt-2 text-2xl font-black text-green-900">
+              {order.orderId}
+            </p>
+
+            <p className="mt-2 text-xs text-gray-500">
+              এই Order ID সংরক্ষণ করে রাখুন।
+            </p>
+
+          </div>
+        )}
+
+        <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+
+          <button
+            type="button"
+            onClick={goHome}
+            className="flex-1 rounded-full bg-green-800 px-6 py-3.5 font-bold text-white transition hover:bg-green-700"
+          >
+            Shopping করুন
+          </button>
+
+          {order && (
             <button
               type="button"
               onClick={() =>
-                navigate("/")
+                navigate(
+                  "/track-order"
+                )
               }
-              className="mt-7 inline-flex items-center justify-center rounded-2xl bg-green-800 px-6 py-3 text-sm font-black text-white transition hover:bg-green-700"
+              className="flex-1 rounded-full border border-green-200 px-6 py-3.5 font-bold text-green-800 transition hover:bg-green-50"
             >
-              Continue Shopping
+              Order Track করুন
             </button>
+          )}
 
-          </div>
         </div>
-      </main>
+      </div>
+    </section>
+  );
+}
+
+/* =========================================
+   TRACK ORDER
+========================================= */
+
+function TrackOrder({
+  order,
+}) {
+  const navigate =
+    useNavigate();
+
+  if (!order) {
+    return (
+      <section className="flex min-h-[calc(100vh-73px)] items-center justify-center bg-stone-50 px-5 py-20">
+
+        <div className="text-center">
+
+          <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-green-50 text-3xl">
+            📦
+          </div>
+
+          <h1 className="mt-6 text-3xl font-black text-green-950">
+            কোনো Order পাওয়া যায়নি
+          </h1>
+
+          <p className="mt-3 text-gray-500">
+            প্রথমে একটি order করুন।
+          </p>
+
+          <button
+            type="button"
+            onClick={() =>
+              navigate("/")
+            }
+            className="mt-6 rounded-full bg-green-800 px-7 py-3 font-bold text-white transition hover:bg-green-700"
+          >
+            Shop করুন
+          </button>
+
+        </div>
+      </section>
     );
   }
 
   return (
-    <main className="min-h-screen bg-stone-50 px-4 py-12 sm:px-6 lg:py-20">
+    <section className="min-h-[calc(100vh-73px)] bg-stone-50 px-5 py-16">
+
       <div className="mx-auto max-w-3xl">
 
-        <div className="overflow-hidden rounded-3xl border border-green-100 bg-white shadow-xl">
+        <div className="text-center">
 
-          {/* HEADER */}
+          <span className="rounded-full bg-green-50 px-4 py-2 text-sm font-bold text-green-800">
+            Order Tracking
+          </span>
 
-          <div className="bg-green-900 px-5 py-8 text-center text-white sm:px-10">
+          <h1 className="mt-5 text-3xl font-black text-green-950 sm:text-4xl">
+            আপনার Order Track করুন
+          </h1>
 
-            <h1 className="text-2xl font-black sm:text-4xl">
-              Track Your Order
-            </h1>
+          <p className="mt-3 text-gray-500">
+            Order ID:{" "}
+            <strong className="text-green-800">
+              {order.orderId}
+            </strong>
+          </p>
 
-            <p className="mt-2 text-sm text-green-100">
-              আপনার order-এর বর্তমান status দেখুন।
+        </div>
+
+        <div className="mt-10 rounded-3xl border border-gray-100 bg-white p-6 shadow-sm sm:p-8">
+
+          <div className="flex gap-4">
+
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-green-800 font-black text-white">
+              ✓
+            </div>
+
+            <div>
+              <h3 className="font-black text-green-950">
+                Order Placed
+              </h3>
+
+              <p className="mt-1 text-sm text-gray-500">
+                আপনার Order সফলভাবে গ্রহণ করা হয়েছে।
+              </p>
+            </div>
+
+          </div>
+
+        </div>
+
+        <div className="mt-6 rounded-3xl border border-gray-100 bg-white p-6 shadow-sm sm:p-8">
+
+          <h2 className="text-lg font-black text-green-950">
+            Delivery Information
+          </h2>
+
+          <div className="mt-5 space-y-4 text-sm text-gray-600">
+
+            <p>
+              <span className="font-bold text-gray-900">
+                Name:
+              </span>{" "}
+              {order.customer?.name ||
+                "N/A"}
             </p>
-          </div>
 
-          <div className="p-5 sm:p-8">
+            <p>
+              <span className="font-bold text-gray-900">
+                Phone:
+              </span>{" "}
+              {order.customer?.phone ||
+                "N/A"}
+            </p>
 
-            {/* ORDER ID */}
+            <p>
+              <span className="font-bold text-gray-900">
+                District:
+              </span>{" "}
+              {order.customer?.district ||
+                "N/A"}
+            </p>
 
-            <div className="rounded-2xl border border-green-100 bg-green-50 p-5 text-center">
-
-              <p className="text-xs font-bold uppercase tracking-wider text-green-600">
-                Order ID
-              </p>
-
-              <p className="mt-2 break-all text-2xl font-black text-green-950">
-                {lastOrder.orderId}
-              </p>
-
-            </div>
-
-            {/* TIMELINE */}
-
-            <div className="mt-8 space-y-6">
-
-              <TimelineItem
-                title="Order Received"
-                description="আপনার order সফলভাবে গ্রহণ করা হয়েছে।"
-                active
-              />
-
-              <TimelineItem
-                title="Preparing"
-                description="আপনার পণ্য প্রস্তুত করা হবে।"
-                active
-              />
-
-              <TimelineItem
-                title="Delivery"
-                description="পণ্য আপনার ঠিকানায় পাঠানো হবে।"
-                active={false}
-              />
-
-            </div>
-
-            {/* ORDER SUMMARY */}
-
-            <div className="mt-8 rounded-2xl bg-stone-50 p-5">
-
-              <h2 className="text-lg font-black text-green-950">
-                Order Summary
-              </h2>
-
-              <div className="mt-4 space-y-3">
-
-                {Array.isArray(
-                  lastOrder.items
-                ) &&
-                  lastOrder.items.map(
-                    (item, index) => (
-                      <div
-                        key={
-                          item.id ||
-                          index
-                        }
-                        className="flex items-center justify-between gap-4 text-sm"
-                      >
-                        <div>
-                          <p className="font-bold text-gray-800">
-                            {item.name ||
-                              "Product"}
-                          </p>
-
-                          <p className="text-xs text-gray-500">
-                            Qty:{" "}
-                            {item.quantity ||
-                              1}
-                          </p>
-                        </div>
-
-                        <p className="font-black text-green-800">
-                          ৳
-                          {(
-                            Number(
-                              item.price ||
-                                0
-                            ) *
-                            Number(
-                              item.quantity ||
-                                1
-                            )
-                          ).toLocaleString(
-                            "en-BD"
-                          )}
-                        </p>
-                      </div>
-                    )
-                  )}
-
-              </div>
-
-              <div className="my-5 border-t border-gray-200" />
-
-              <div className="flex justify-between text-sm">
-                <span className="text-gray-500">
-                  Subtotal
-                </span>
-
-                <span className="font-bold">
-                  ৳
-                  {Number(
-                    lastOrder.subtotal ||
-                      0
-                  ).toLocaleString(
-                    "en-BD"
-                  )}
-                </span>
-              </div>
-
-              <div className="mt-2 flex justify-between text-sm">
-                <span className="text-gray-500">
-                  Delivery
-                </span>
-
-                <span className="font-bold">
-                  ৳
-                  {Number(
-                    lastOrder.deliveryCharge ||
-                      0
-                  ).toLocaleString(
-                    "en-BD"
-                  )}
-                </span>
-              </div>
-
-              <div className="mt-4 flex justify-between border-t border-gray-200 pt-4">
-
-                <span className="font-black text-green-950">
-                  Total
-                </span>
-
-                <span className="text-xl font-black text-green-800">
-                  ৳
-                  {Number(
-                    lastOrder.total ||
-                      0
-                  ).toLocaleString(
-                    "en-BD"
-                  )}
-                </span>
-
-              </div>
-
-            </div>
-
-            {/* BACK BUTTON */}
-
-            <button
-              type="button"
-              onClick={() =>
-                navigate("/")
-              }
-              className="mt-7 flex w-full items-center justify-center gap-2 rounded-2xl border border-green-200 bg-white px-5 py-3 text-sm font-black text-green-800 transition hover:bg-green-50"
-            >
-              <ShoppingBagIcon />
-              Continue Shopping
-            </button>
+            <p>
+              <span className="font-bold text-gray-900">
+                Address:
+              </span>{" "}
+              {order.customer?.address ||
+                "N/A"}
+            </p>
 
           </div>
         </div>
-      </div>
-    </main>
-  );
-}
 
-// ============================================================
-// TIMELINE ITEM
-// ============================================================
+        <div className="mt-6 rounded-3xl bg-green-950 p-6 text-white">
 
-function TimelineItem({
-  title,
-  description,
-  active,
-}) {
-  return (
-    <div className="flex gap-4">
+          <div className="flex items-center justify-between">
 
-      <div className="flex flex-col items-center">
+            <span className="font-bold text-white/60">
+              Order Total
+            </span>
 
-        <div
-          className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full ${
-            active
-              ? "bg-green-100 text-green-700"
-              : "bg-gray-100 text-gray-400"
-          }`}
-        >
-          {active ? (
-            <CheckIcon />
-          ) : (
-            <PackageIcon />
-          )}
+            <span className="text-2xl font-black text-lime-400">
+              ৳
+              {(
+                Number(
+                  order.total
+                ) || 0
+              ).toLocaleString()}
+            </span>
+
+          </div>
+
         </div>
 
-        <div className="mt-2 h-full w-px bg-gray-200" />
-
       </div>
-
-      <div className="pb-5">
-
-        <h3 className="font-black text-green-950">
-          {title}
-        </h3>
-
-        <p className="mt-1 text-sm leading-6 text-gray-500">
-          {description}
-        </p>
-
-      </div>
-    </div>
+    </section>
   );
 }
 
-// ============================================================
-// NOT FOUND
-// ============================================================
+/* =========================================
+   NOT FOUND
+========================================= */
 
 function NotFound() {
-  const navigate = useNavigate();
+  const navigate =
+    useNavigate();
 
   return (
-    <main className="flex min-h-[70vh] items-center justify-center bg-stone-50 px-4 py-12">
+    <section className="flex min-h-[calc(100vh-73px)] items-center justify-center bg-stone-50 px-5">
 
-      <div className="max-w-md text-center">
+      <div className="text-center">
 
-        <p className="text-7xl font-black text-green-800">
-          404
+        <p className="text-sm font-bold uppercase tracking-[0.3em] text-green-600">
+          Chacha & Vatija Agro
         </p>
 
-        <h1 className="mt-4 text-2xl font-black text-green-950">
-          Page Not Found
+        <h1 className="mt-3 text-7xl font-black text-green-800">
+          404
         </h1>
 
-        <p className="mt-3 text-sm leading-6 text-gray-500">
-          আপনি যে pageটি খুঁজছেন সেটি পাওয়া যায়নি।
-        </p>
+        <h2 className="mt-4 text-2xl font-black text-green-950">
+          Page Not Found
+        </h2>
 
         <button
           type="button"
           onClick={() =>
             navigate("/")
           }
-          className="mt-7 rounded-2xl bg-green-800 px-6 py-3 text-sm font-black text-white transition hover:bg-green-700"
+          className="mt-7 rounded-full bg-green-800 px-7 py-3 font-bold text-white transition hover:bg-green-700"
         >
-          Go Home
+          Home এ যান
         </button>
 
       </div>
-    </main>
+    </section>
   );
 }
 
-// ============================================================
-// SIMPLE ICONS
-// ============================================================
-
-function CheckIcon() {
-  return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      width="20"
-      height="20"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="3"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M20 6 9 17l-5-5" />
-    </svg>
-  );
-}
-
-function PackageIcon() {
-  return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      width="22"
-      height="22"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="m16.5 9.4-9-5.19" />
-      <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z" />
-      <path d="M3.27 6.96 12 12.01l8.73-5.05" />
-      <path d="M12 22.08V12" />
-    </svg>
-  );
-}
-
-function ShoppingBagIcon() {
-  return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      width="18"
-      height="18"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z" />
-      <path d="M3 6h18" />
-      <path d="M16 10a4 4 0 0 1-8 0" />
-    </svg>
-  );
-}
-
-// ============================================================
-// ROOT APP
-// ============================================================
+/* =========================================
+   APP
+========================================= */
 
 function App() {
   return (
@@ -880,3 +950,4 @@ function App() {
 }
 
 export default App;
+
